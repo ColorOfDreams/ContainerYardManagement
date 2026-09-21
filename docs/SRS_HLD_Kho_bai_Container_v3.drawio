@@ -1,72 +1,79 @@
 <mxfile host="65bd71144e">
-    <diagram id="hld-kho-bai-container-v2" name="HLD - Kho bai Container">
-        <mxGraphModel dx="880" dy="2316" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1650" pageHeight="980" math="0" shadow="0">
+    <diagram id="hld-kho-bai-container-v3" name="HLD - Kho bai Container">
+        <mxGraphModel dx="317" dy="1226" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1650" pageHeight="980" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="title" value="&lt;b&gt;Hệ thống Quản lý Kho bãi Container — High-Level Design&lt;/b&gt;" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=24;fontColor=#0F172A;" parent="1" vertex="1">
                     <mxGeometry x="260" y="15" width="1100" height="45" as="geometry"/>
                 </mxCell>
-                <mxCell id="subtitle" value="Management Service và Yard Optimize Service tách biệt hoàn toàn dữ liệu (mỗi service 1 DB riêng), giao tiếp bất đồng bộ qua Message Broker" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;fontSize=13;fontColor=#475569;" parent="1" vertex="1">
-                    <mxGeometry x="230" y="58" width="1160" height="26" as="geometry"/>
-                </mxCell>
-                <mxCell id="external-frame" value="&lt;font style=&quot;font-size: 23px;&quot;&gt;EXTERNAL CLIENTS&lt;/font&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fontStyle=1;fontSize=14;align=left;spacingLeft=14;fillColor=#F8FAFC;swimlaneFillColor=#E0F2FE;strokeColor=#94A3B8;strokeWidth=1.5;fontColor=#0F172A;" parent="1" vertex="1">
+                <mxCell id="external-frame" value="EXTERNAL CLIENTS" style="swimlane;html=1;rounded=1;horizontal=1;startSize=34;fontStyle=1;fontSize=15;align=left;spacingLeft=14;fillColor=#F8FAFC;swimlaneFillColor=#E0F2FE;strokeColor=#94A3B8;strokeWidth=1.5;fontColor=#0F172A;" parent="1" vertex="1">
                     <mxGeometry x="10" y="-130" width="260" height="280" as="geometry"/>
                 </mxCell>
-                <mxCell id="client" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;&lt;b&gt;Client&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color: rgb(71, 85, 105);&quot;&gt;Web / Mobile App&lt;br&gt;Đăng nhập JWT / OAuth2&lt;/font&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;strokeWidth=1.5;fillColor=#EFF6FF;strokeColor=#60A5FA;fontColor=#1E3A8A;fontSize=15;align=center;verticalAlign=middle;" parent="external-frame" vertex="1">
+                <mxCell id="client" value="&lt;b&gt;Client&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: rgb(71, 85, 105);&quot;&gt;Web / Mobile App&lt;br&gt;Đăng nhập JWT / OAuth2&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;strokeWidth=1.5;fillColor=#EFF6FF;strokeColor=#60A5FA;fontColor=#1E3A8A;fontSize=15;align=center;verticalAlign=middle;spacing=6;" parent="external-frame" vertex="1">
                     <mxGeometry x="20" y="80" width="200" height="120" as="geometry"/>
                 </mxCell>
-                <mxCell id="runtime-frame" value="&lt;font style=&quot;font-size: 28px;&quot;&gt;BACKEND (DOCKER COMPOSE)&lt;/font&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fontStyle=1;fontSize=14;align=left;spacingLeft=14;fillColor=#FFFFFF;swimlaneFillColor=#EDE9FE;strokeColor=#818CF8;strokeWidth=1.5;fontColor=#1E1B4B;" parent="1" vertex="1">
+                <mxCell id="runtime-frame" value="BACKEND (DOCKER COMPOSE)" style="swimlane;html=1;rounded=1;horizontal=1;startSize=34;fontStyle=1;fontSize=15;align=left;spacingLeft=14;fillColor=#FFFFFF;swimlaneFillColor=#EDE9FE;strokeColor=#818CF8;strokeWidth=1.5;fontColor=#1E1B4B;" parent="1" vertex="1">
                     <mxGeometry x="380" y="-140" width="1260" height="885" as="geometry"/>
                 </mxCell>
-                <mxCell id="gateway" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;&lt;b&gt;API Gateway&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color: rgb(71, 85, 105);&quot;&gt;Xác thực JWT / OAuth2&lt;br&gt;Rate limit &amp;amp; CORS&lt;br&gt;Định tuyến request&lt;br&gt;Swagger tổng hợp&lt;/font&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;strokeWidth=2;fillColor=#F5F3FF;strokeColor=#8B5CF6;fontColor=#4C1D95;fontSize=16;align=center;verticalAlign=middle;" parent="runtime-frame" vertex="1">
+                <mxCell id="gateway" value="&lt;b&gt;API Gateway&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: rgb(71, 85, 105);&quot;&gt;Xác thực JWT / OAuth2&lt;br&gt;Rate limit &amp;amp; CORS&lt;br&gt;Định tuyến request&lt;br&gt;Swagger tổng hợp&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;strokeWidth=2;fillColor=#F5F3FF;strokeColor=#8B5CF6;fontColor=#4C1D95;fontSize=16;align=center;verticalAlign=middle;spacing=6;" parent="runtime-frame" vertex="1">
                     <mxGeometry x="380" y="75" width="320" height="150" as="geometry"/>
                 </mxCell>
-                <mxCell id="broker" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;&lt;b&gt;Message Broker&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color: rgb(71, 85, 105);&quot;&gt;Kafka&lt;/font&gt;&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;strokeWidth=2;fillColor=#FFF7ED;strokeColor=#F97316;fontColor=#7C2D12;fontSize=15;align=center;" parent="runtime-frame" vertex="1">
+                <mxCell id="broker" value="&lt;b&gt;Message Broker&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: rgb(71, 85, 105);&quot;&gt;Kafka&lt;br&gt;(giao tiếp hành vi bất đồng bộ,&lt;br&gt;độc lập với tầng dữ liệu)&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;strokeWidth=2;fillColor=#FFF7ED;strokeColor=#F97316;fontColor=#7C2D12;fontSize=15;align=center;spacing=6;" parent="runtime-frame" vertex="1">
                     <mxGeometry x="405" y="690" width="260" height="170" as="geometry"/>
                 </mxCell>
-                <mxCell id="optimize" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;&lt;b&gt;Yard Optimize Service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color: rgb(71, 85, 105);&quot;&gt;Slot Allocation &amp;amp; Re-plan&lt;br&gt;Thuật toán scoring vị trí&lt;br&gt;Xử lý Event → tính lại Movement&lt;br&gt;GET /health&lt;/font&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;strokeWidth=2;fillColor=#FFF7ED;strokeColor=#FB923C;fontColor=#7C2D12;fontSize=16;align=center;verticalAlign=middle;" parent="runtime-frame" vertex="1">
+                <mxCell id="optimize" value="&lt;b&gt;Yard Optimize Service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: rgb(71, 85, 105);&quot;&gt;Slot Allocation &amp;amp; Re-plan&lt;br&gt;Thuật toán scoring vị trí&lt;br&gt;Xử lý Event → tính lại Movement&lt;br&gt;GET /health&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;strokeWidth=2;fillColor=#FFF7ED;strokeColor=#FB923C;fontColor=#7C2D12;fontSize=16;align=center;verticalAlign=middle;spacing=6;" parent="runtime-frame" vertex="1">
                     <mxGeometry x="890" y="35" width="330" height="230" as="geometry"/>
                 </mxCell>
-                <mxCell id="f3" value="&lt;font style=&quot;font-size: 23px;&quot;&gt;3. REST&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#8B5CF6;endArrow=block;endFill=1;fontSize=12;fontColor=#4C1D95;labelBackgroundColor=#FFFFFF;" parent="runtime-frame" source="gateway" target="optimize" edge="1">
+                <mxCell id="f3" value="3. REST" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#8B5CF6;endArrow=block;endFill=1;fontSize=12;fontColor=#4C1D95;labelBackgroundColor=#FFFFFF;" parent="runtime-frame" source="gateway" target="optimize" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="f8" value="&lt;font style=&quot;font-size: 23px;&quot;&gt;8. Nhận yêu cầu re-plan /&lt;br&gt;Publish kết quả phân bổ&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#FB923C;startArrow=classic;startFill=1;endArrow=block;endFill=1;fontSize=11.5;fontColor=#7C2D12;labelBackgroundColor=#FFFFFF;" parent="runtime-frame" source="broker" target="optimize" edge="1">
-                    <mxGeometry relative="1" as="geometry"/>
+                <mxCell id="f8" value="8. Nhận yêu cầu re-plan /&lt;br&gt;Publish kết quả phân bổ" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#FB923C;startArrow=classic;startFill=1;endArrow=block;endFill=1;fontSize=11.5;fontColor=#7C2D12;labelBackgroundColor=#FFFFFF;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="runtime-frame" source="broker" target="optimize" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <Array as="points">
+                            <mxPoint x="750" y="775"/>
+                            <mxPoint x="750" y="150"/>
+                        </Array>
+                    </mxGeometry>
                 </mxCell>
-                <mxCell id="redis" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;&lt;b style=&quot;&quot;&gt;Redis&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color: rgb(71, 85, 105);&quot;&gt;Cache Slot trống,&lt;br&gt;tra cứu container&lt;/font&gt;&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;strokeWidth=2;fillColor=#FEF2F2;strokeColor=#F87171;fontColor=#7F1D1D;fontSize=13;align=center;" parent="runtime-frame" vertex="1">
+                <mxCell id="redis" value="&lt;b&gt;Redis&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: rgb(71, 85, 105);&quot;&gt;Cache Slot trống,&lt;br&gt;tra cứu container&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;strokeWidth=2;fillColor=#FEF2F2;strokeColor=#F87171;fontColor=#7F1D1D;fontSize=13;align=center;spacing=6;" parent="runtime-frame" vertex="1">
                     <mxGeometry x="40" y="690" width="170" height="160" as="geometry"/>
                 </mxCell>
-                <mxCell id="mgmt" value="&lt;font style=&quot;font-size: 18px;&quot;&gt;&lt;b&gt;Management Service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color: rgb(71, 85, 105);&quot;&gt;CRUD nghiệp vụ:&lt;br&gt;Contract, Shipment, Container,&lt;br&gt;Yard Visit, Inspection, Movement,&lt;br&gt;Event, Invoice, Payment&lt;br&gt;GET /health&lt;/font&gt;&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;strokeWidth=2;fillColor=#ECFEFF;strokeColor=#06B6D4;fontColor=#164E63;fontSize=16;align=center;verticalAlign=middle;" parent="runtime-frame" vertex="1">
+                <mxCell id="mgmt" value="&lt;b&gt;Management Service&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: rgb(71, 85, 105);&quot;&gt;CRUD nghiệp vụ:&lt;br&gt;Contract, Shipment, Container,&lt;br&gt;Yard Visit, Inspection, Movement,&lt;br&gt;Event, Invoice, Payment&lt;br&gt;GET /health&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;arcSize=14;strokeWidth=2;fillColor=#ECFEFF;strokeColor=#06B6D4;fontColor=#164E63;fontSize=16;align=center;verticalAlign=middle;spacing=6;" parent="runtime-frame" vertex="1">
                     <mxGeometry x="370" y="330" width="330" height="230" as="geometry"/>
                 </mxCell>
-                <mxCell id="f2" value="&lt;font style=&quot;font-size: 23px;&quot;&gt;2. REST&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#8B5CF6;endArrow=block;endFill=1;fontSize=12;fontColor=#4C1D95;labelBackgroundColor=#FFFFFF;" parent="runtime-frame" source="gateway" target="mgmt" edge="1">
+                <mxCell id="f2" value="2. REST" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#8B5CF6;endArrow=block;endFill=1;fontSize=12;fontColor=#4C1D95;labelBackgroundColor=#FFFFFF;" parent="runtime-frame" source="gateway" target="mgmt" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="f7" value="&lt;font style=&quot;font-size: 23px;&quot;&gt;7. Publish yêu cầu re-plan /&lt;br&gt;Nhận kết quả phân bổ&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#06B6D4;startArrow=classic;startFill=1;endArrow=block;endFill=1;fontSize=11.5;fontColor=#164E63;labelBackgroundColor=#FFFFFF;" parent="runtime-frame" source="mgmt" target="broker" edge="1">
+                <mxCell id="f7" value="7. Publish yêu cầu re-plan /&lt;br&gt;Nhận kết quả phân bổ" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#06B6D4;startArrow=classic;startFill=1;endArrow=block;endFill=1;fontSize=11.5;fontColor=#164E63;labelBackgroundColor=#FFFFFF;" parent="runtime-frame" source="mgmt" target="broker" edge="1">
                     <mxGeometry x="0.0769" y="155" relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="f5" value="&lt;font style=&quot;font-size: 23px;&quot;&gt;5. Cache&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#F87171;endArrow=block;endFill=1;fontSize=12;fontColor=#7F1D1D;labelBackgroundColor=#FFFFFF;" parent="runtime-frame" source="mgmt" target="redis" edge="1">
+                <mxCell id="f5" value="5. Cache" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#F87171;endArrow=block;endFill=1;fontSize=12;fontColor=#7F1D1D;labelBackgroundColor=#FFFFFF;" parent="runtime-frame" source="mgmt" target="redis" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="f1" value="&lt;font style=&quot;font-size: 23px;&quot;&gt;1. HTTPS request&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#3B82F6;endArrow=block;endFill=1;fontSize=12;fontColor=#1E40AF;labelBackgroundColor=#FFFFFF;" parent="1" source="client" target="gateway" edge="1">
+                <mxCell id="f1" value="1. HTTPS request" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#3B82F6;endArrow=block;endFill=1;fontSize=12;fontColor=#1E40AF;labelBackgroundColor=#FFFFFF;" parent="1" source="client" target="gateway" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="UvEQBzJwCwMszKOE_r5K-1" value="&lt;font style=&quot;font-size: 28px;&quot;&gt;DATABSE&lt;/font&gt;" style="swimlane;html=1;rounded=1;horizontal=1;startSize=38;fontStyle=1;fontSize=14;align=left;spacingLeft=14;fillColor=#d5e8d4;swimlaneFillColor=#BCF7FE;strokeColor=#82b366;strokeWidth=1.5;" parent="1" vertex="1">
-                    <mxGeometry x="1780" y="-110" width="400" height="517.5" as="geometry"/>
+                <mxCell id="UvEQBzJwCwMszKOE_r5K-1" value="DATABASE — 1 PostgreSQL instance, 2 schema riêng" style="swimlane;html=1;rounded=1;horizontal=1;startSize=34;fontStyle=1;fontSize=14;align=left;spacingLeft=14;fillColor=#d5e8d4;swimlaneFillColor=#BCF7FE;strokeColor=#82b366;strokeWidth=1.5;" parent="1" vertex="1">
+                    <mxGeometry x="1780" y="-110" width="440" height="540" as="geometry"/>
                 </mxCell>
-                <mxCell id="opt_db" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;&lt;b&gt;Optimize DB&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color: rgb(71, 85, 105);&quot;&gt;Slot (yard layout)&lt;/font&gt;&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;strokeWidth=2;fillColor=#ECFDF5;strokeColor=#14B8A6;fontColor=#134E4A;fontSize=13;align=center;" parent="UvEQBzJwCwMszKOE_r5K-1" vertex="1">
-                    <mxGeometry x="105" y="45" width="190" height="150" as="geometry"/>
+                <mxCell id="opt_db" value="&lt;b&gt;Schema: optimize&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: rgb(71, 85, 105);&quot;&gt;Slot (yard layout)&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;strokeWidth=2;fillColor=#ECFDF5;strokeColor=#14B8A6;fontColor=#134E4A;fontSize=13;align=center;spacing=6;" parent="UvEQBzJwCwMszKOE_r5K-1" vertex="1">
+                    <mxGeometry x="115" y="55" width="210" height="150" as="geometry"/>
                 </mxCell>
-                <mxCell id="mgmt_db" value="&lt;font style=&quot;font-size: 20px;&quot;&gt;&lt;b&gt;Management DB&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;color: rgb(71, 85, 105);&quot;&gt;Contract, Shipment,&lt;br&gt;YardVisit, Invoice...&lt;/font&gt;&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;strokeWidth=2;fillColor=#ECFDF5;strokeColor=#14B8A6;fontColor=#134E4A;fontSize=13;align=center;" parent="UvEQBzJwCwMszKOE_r5K-1" vertex="1">
-                    <mxGeometry x="105" y="335" width="190" height="160" as="geometry"/>
+                <mxCell id="mgmt_db" value="&lt;b&gt;Schema: management&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size: 11px; color: rgb(71, 85, 105);&quot;&gt;Contract, Shipment,&lt;br&gt;YardVisit, Invoice...&lt;/font&gt;" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=15;strokeWidth=2;fillColor=#ECFDF5;strokeColor=#14B8A6;fontColor=#134E4A;fontSize=13;align=center;spacing=6;" parent="UvEQBzJwCwMszKOE_r5K-1" vertex="1">
+                    <mxGeometry x="115" y="345" width="210" height="160" as="geometry"/>
+                </mxCell>
+                <mxCell id="db-note" value="Cùng 1 database vật lý → FK cross-schema hợp lệ&lt;br&gt;(vd YardVisit.current_slot_id → Slot). Mỗi service&lt;br&gt;chỉ có quyền DB user trên đúng schema của mình." style="edgeStyle=none;html=1;strokeColor=#82b366;strokeWidth=1.5;dashed=1;endArrow=none;startArrow=none;fontSize=10.5;fontColor=#3F6212;labelBackgroundColor=#F0FDF4;align=center;verticalAlign=middle;" parent="UvEQBzJwCwMszKOE_r5K-1" source="opt_db" target="mgmt_db" edge="1">
+                    <mxGeometry relative="1" as="geometry">
+                        <mxPoint x="220" y="270" as="offset"/>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="f6" value="6. Read / Write" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#FB923C;endArrow=block;endFill=1;fontSize=12;fontColor=#7C2D12;labelBackgroundColor=#FFFFFF;" parent="1" source="optimize" target="opt_db" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="f4" value="&lt;font style=&quot;font-size: 23px;&quot;&gt;4. Read / Write&lt;/font&gt;" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#06B6D4;endArrow=block;endFill=1;fontSize=12;fontColor=#164E63;labelBackgroundColor=#FFFFFF;" parent="1" source="mgmt" target="mgmt_db" edge="1">
+                <mxCell id="f4" value="4. Read / Write" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;strokeColor=#06B6D4;endArrow=block;endFill=1;fontSize=12;fontColor=#164E63;labelBackgroundColor=#FFFFFF;" parent="1" source="mgmt" target="mgmt_db" edge="1">
                     <mxGeometry x="0.1429" y="35" relative="1" as="geometry">
                         <mxPoint as="offset"/>
                     </mxGeometry>

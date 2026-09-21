@@ -1,0 +1,1960 @@
+openapi: 3.0.3
+info:
+  title: Container Yard Management System API
+  description: >
+    API cho Hệ thống Quản lý Kho bãi Container — gồm 2 service tách biệt dữ liệu,
+    hợp nhất tài liệu tại API Gateway (Swagger tổng hợp, xem README.md và
+    SRS_HLD_Kho_bai_Container_v3.drawio):
+      - Management Service (tag: management-*) — CRUD nghiệp vụ: Contract, Container,
+        Shipment, YardVisit, Inspection, Movement, Event, Invoice, Payment.
+      - Yard Optimize Service (tag: optimize-*) — Slot Allocation & Relocation.
+    Toàn bộ transition trạng thái tham chiếu tài liệu State_Business_Kho_bai_Container_v1.docx
+    (nguồn duy nhất/source of truth cho state machine). Data model đầy đủ tham chiếu
+    SRS_Quan_ly_kho_bai_container_v5.docx mục 4.
+  version: "1.0.0"
+servers:
+  - url: /api
+    description: Qua API Gateway (JWT/OAuth2, rate limit, CORS, định tuyến)
+
+tags:
+  - name: auth
+    description: Xác thực & phân quyền (JWT + refresh, OAuth2, reset password)
+  - name: management-contract
+    description: "FR-01 — Quản lý Hợp đồng"
+  - name: management-container
+    description: "FR-02 — Quản lý Container"
+  - name: management-shipment
+    description: "FR-03 — Shipment, Shipment_Container, Cargo"
+  - name: management-yard-visit
+    description: "FR-04, FR-05, FR-08, FR-09 — Vòng đời một lần lưu bãi"
+  - name: management-inspection
+    description: "FR-05, FR-09 — Inspection Gate-in/Gate-out/Ad-hoc"
+  - name: management-movement
+    description: "FR-06, FR-07, FR-08, FR-09 — Di chuyển nội bãi"
+  - name: management-event
+    description: "FR-07 — Event trong kho (Customs Hold, Dispute, Damage During Movement...)"
+  - name: management-invoice
+    description: "FR-10 — Invoice & Payment"
+  - name: management-report
+    description: "FR-11 — Tra cứu & Báo cáo"
+  - name: optimize-slot
+    description: Quản lý Slot (Yard Position)
+  - name: optimize-allocation
+    description: "FR-06, FR-07 — Slot Allocation & Relocation (thuật toán scoring)"
+  - name: health
+    description: Health check
+
+security:
+  - bearerAuth: []
+
+paths:
+  # ============================================================
+  # AUTH
+  # ============================================================
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Đăng nhập
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokenPair' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/oauth2/{provider}/callback:
+    post:
+      tags: [auth]
+      summary: Đăng nhập qua OAuth2 bên thứ ba
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema: { type: string, example: google }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string }
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokenPair' }
+
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Làm mới access token bằng refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: Token mới
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthTokenPair' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /auth/forgot-password:
+    post:
+      tags: [auth]
+      summary: Gửi email/OTP đặt lại mật khẩu
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '204': { description: Đã gửi email/OTP (nếu email tồn tại) }
+
+  /auth/reset-password:
+    post:
+      tags: [auth]
+      summary: Đặt lại mật khẩu bằng link/OTP có thời hạn hiệu lực
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, new_password]
+              properties:
+                token: { type: string, description: Token từ link email hoặc OTP }
+                new_password: { type: string, format: password }
+      responses:
+        '204': { description: Đặt lại mật khẩu thành công }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  # ============================================================
+  # FR-01 — CONTRACT
+  # ============================================================
+  /contracts:
+    get:
+      tags: [management-contract]
+      summary: Danh sách Contract (search/filter/sort/pagination)
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ContractStatus' }
+        - name: customer_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContractListResponse' }
+    post:
+      tags: [management-contract]
+      summary: "Tạo Contract (FR-01.1) — actor Admin"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContractCreate' }
+      responses:
+        '201':
+          description: Đã tạo (status mặc định Draft)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contract' }
+
+  /contracts/{contractId}:
+    parameters:
+      - $ref: '#/components/parameters/ContractId'
+    get:
+      tags: [management-contract]
+      summary: Chi tiết Contract
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contract' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [management-contract]
+      summary: Sửa điều khoản Contract (đơn giá, free_time_days, surcharge_rate, payment_terms)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContractUpdate' }
+      responses:
+        '200':
+          description: Đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contract' }
+
+  /contracts/{contractId}/activate:
+    post:
+      tags: [management-contract]
+      summary: "Draft → Active (FR-01.2) — điều kiện bắt buộc để tạo Shipment"
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      responses:
+        '200':
+          description: Contract đã Active
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contract' }
+        '409':
+          description: Điều khoản chưa hợp lệ để Active
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /contracts/{contractId}/terminate:
+    post:
+      tags: [management-contract]
+      summary: >
+        Active → Terminated. Admin chủ động chấm dứt sớm (vi phạm điều khoản / hai bên
+        thỏa thuận dừng trước hạn). KHÔNG được kích hoạt tự động bởi việc thanh toán đủ
+        hóa đơn — xem State Business mục 3.1/4.1.
+      parameters:
+        - $ref: '#/components/parameters/ContractId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, description: Lý do chấm dứt sớm }
+      responses:
+        '200':
+          description: Contract đã Terminated. Yard Visit đang mở dưới hợp đồng không bị ảnh hưởng.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Contract' }
+
+  # ============================================================
+  # FR-02 — CONTAINER
+  # ============================================================
+  /containers:
+    get:
+      tags: [management-container]
+      summary: Danh sách Container (search/filter/sort/pagination)
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ContainerStatus' }
+        - name: container_type
+          in: query
+          schema: { type: string }
+        - name: is_busy
+          in: query
+          description: >
+            Suy ra (derived) — đang gắn Yard Visit chưa Closed/Rejected/Cancelled
+            (FR-02.4). Không phải cột lưu trữ.
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ContainerListResponse' }
+    post:
+      tags: [management-container]
+      summary: "Tạo Container (kiểm tra ISO 6346, container_code duy nhất)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContainerCreate' }
+      responses:
+        '201':
+          description: Đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Container' }
+        '409':
+          description: Trùng container_code
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /containers/import:
+    post:
+      tags: [management-container]
+      summary: Import danh sách Container từ Excel/CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: { type: string, format: binary }
+      responses:
+        '202':
+          description: Đã nhận, xử lý bất đồng bộ qua Queue
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AsyncJobAccepted' }
+
+  /containers/export:
+    get:
+      tags: [management-container]
+      summary: Export danh sách Container (Excel/CSV/PDF)
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema: { type: string, enum: [xlsx, csv, pdf] }
+      responses:
+        '202':
+          description: Đã nhận yêu cầu export, xử lý bất đồng bộ qua Queue
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AsyncJobAccepted' }
+
+  /containers/{containerId}:
+    parameters:
+      - $ref: '#/components/parameters/ContainerId'
+    get:
+      tags: [management-container]
+      summary: Chi tiết Container
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Container' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [management-container]
+      summary: Sửa thông tin Container (loại, kích thước, tải trọng)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ContainerUpdate' }
+      responses:
+        '200':
+          description: Đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Container' }
+
+  /containers/{containerId}/maintenance:
+    post:
+      tags: [management-container]
+      summary: "AVAILABLE → MAINTENANCE (bảo trì định kỳ, hoặc hư hỏng nhẹ phát hiện qua Inspection)"
+      parameters:
+        - $ref: '#/components/parameters/ContainerId'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: Container đã MAINTENANCE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Container' }
+
+  /containers/{containerId}/available:
+    post:
+      tags: [management-container]
+      summary: "MAINTENANCE → AVAILABLE (bảo trì hoàn thành)"
+      parameters:
+        - $ref: '#/components/parameters/ContainerId'
+      responses:
+        '200':
+          description: Container đã AVAILABLE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Container' }
+        '409':
+          description: Container đang DAMAGED — không thể chuyển thẳng sang AVAILABLE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /containers/{containerId}/damage:
+    post:
+      tags: [management-container]
+      summary: >
+        AVAILABLE → DAMAGED hoặc MAINTENANCE → DAMAGED (hư hỏng nặng, không sửa được).
+        Trạng thái cuối (terminal) — xem State Business mục 4.3.
+      parameters:
+        - $ref: '#/components/parameters/ContainerId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+                inspection_id:
+                  type: string
+                  format: uuid
+                  description: Inspection xác nhận mức độ hư hỏng (nếu có)
+      responses:
+        '200':
+          description: Container đã DAMAGED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Container' }
+
+  # ============================================================
+  # FR-03 — SHIPMENT / SHIPMENT_CONTAINER / CARGO
+  # ============================================================
+  /shipments:
+    get:
+      tags: [management-shipment]
+      summary: Danh sách Shipment (search/filter/sort/pagination)
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          description: "Derived — xem State Business mục 4.2"
+          schema: { $ref: '#/components/schemas/ShipmentStatus' }
+        - name: contract_id
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShipmentListResponse' }
+    post:
+      tags: [management-shipment]
+      summary: "Tạo Shipment (FR-03.1) — actor Dispatcher, yêu cầu Contract đang Active"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShipmentCreate' }
+      responses:
+        '201':
+          description: Đã tạo (status mặc định Planned)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Shipment' }
+        '409':
+          description: Contract không Active
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /shipments/{shipmentId}:
+    parameters:
+      - $ref: '#/components/parameters/ShipmentId'
+    get:
+      tags: [management-shipment]
+      summary: Chi tiết Shipment
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Shipment' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [management-shipment]
+      summary: Sửa thông tin Shipment (shipper/consignee/carrier/cảng...)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShipmentUpdate' }
+      responses:
+        '200':
+          description: Đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Shipment' }
+
+  /shipments/{shipmentId}/depart:
+    post:
+      tags: [management-shipment]
+      summary: "Planned → In Transit (bắt đầu vận chuyển, rời cảng đi)"
+      parameters:
+        - $ref: '#/components/parameters/ShipmentId'
+      responses:
+        '200':
+          description: Shipment đã In Transit
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Shipment' }
+
+  /shipments/{shipmentId}/containers:
+    parameters:
+      - $ref: '#/components/parameters/ShipmentId'
+    get:
+      tags: [management-shipment]
+      summary: Danh sách Shipment_Container thuộc Shipment
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/ShipmentContainer' }
+    post:
+      tags: [management-shipment]
+      summary: "Gắn Container vào Shipment, khai báo seal (FR-03.2)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ShipmentContainerCreate' }
+      responses:
+        '201':
+          description: Đã tạo Shipment_Container
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ShipmentContainer' }
+        '409':
+          description: Container đang có Yard Visit chưa Closed/Rejected/Cancelled ở Shipment khác
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /shipment-containers/{shipmentContainerId}/cargo:
+    parameters:
+      - name: shipmentContainerId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [management-shipment]
+      summary: Danh sách Cargo thuộc 1 Shipment_Container
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Cargo' }
+    post:
+      tags: [management-shipment]
+      summary: "Khai báo Cargo cho Shipment_Container (FR-03.3)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CargoCreate' }
+      responses:
+        '201':
+          description: Đã tạo Cargo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cargo' }
+
+  # ============================================================
+  # FR-04, FR-05, FR-08, FR-09 — YARD VISIT
+  # ============================================================
+  /yard-visits:
+    get:
+      tags: [management-yard-visit]
+      summary: Danh sách Yard Visit (search/filter/sort/pagination)
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/YardVisitStatus' }
+        - name: eta_from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: eta_to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/YardVisitListResponse' }
+    post:
+      tags: [management-yard-visit]
+      summary: "Lập kế hoạch lưu bãi (FR-04.1) — actor Dispatcher, status = PLANNED"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/YardVisitCreate' }
+      responses:
+        '201':
+          description: Đã tạo YardVisit (PLANNED)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/YardVisit' }
+
+  /yard-visits/{yardVisitId}:
+    parameters:
+      - $ref: '#/components/parameters/YardVisitId'
+    get:
+      tags: [management-yard-visit]
+      summary: Chi tiết Yard Visit
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/YardVisit' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [management-yard-visit]
+      summary: "Đổi lịch (eta/etd) — FR-04.2"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                eta: { type: string, format: date-time }
+                etd: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/YardVisit' }
+
+  /yard-visits/{yardVisitId}/cancel:
+    post:
+      tags: [management-yard-visit]
+      summary: >
+        PLANNED → CANCELLED. Sự cố vận chuyển trước khi đến bãi (Case 2, State Business
+        mục 3.2). Side-effect: giải phóng Slot Reserved liên quan (nếu có) về Empty
+        qua Yard Optimize Service.
+      parameters:
+        - $ref: '#/components/parameters/YardVisitId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: YardVisit đã CANCELLED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/YardVisit' }
+        '409':
+          description: YardVisit không còn ở PLANNED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /yard-visits/{yardVisitId}/gate-in:
+    post:
+      tags: [management-yard-visit]
+      summary: "PLANNED → ARRIVED, ghi nhận ata (FR-05.1)"
+      parameters:
+        - $ref: '#/components/parameters/YardVisitId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ata: { type: string, format: date-time }
+      responses:
+        '200':
+          description: YardVisit đã ARRIVED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/YardVisit' }
+
+  /yard-visits/{yardVisitId}/stage:
+    post:
+      tags: [management-yard-visit]
+      summary: >
+        IN_YARD → STAGING (Outbound Staging/Rehandle, FR-08 — BẮT BUỘC, không cho phép
+        IN_YARD → DEPARTED trực tiếp). Tạo Movement type=Rehandle, gọi
+        Yard Optimize Service để chọn slot gần cổng.
+      parameters:
+        - $ref: '#/components/parameters/YardVisitId'
+      responses:
+        '200':
+          description: YardVisit đã STAGING
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/YardVisit' }
+        '409':
+          description: YardVisit không ở IN_YARD
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /yard-visits/{yardVisitId}/gate-out:
+    post:
+      tags: [management-yard-visit]
+      summary: >
+        STAGING → DEPARTED, ghi nhận atd, tạo Movement type=Gate-out (to_slot_id=null),
+        giải phóng Slot (FR-09.2). Yêu cầu đã có Inspection type=Gate-out.
+      parameters:
+        - $ref: '#/components/parameters/YardVisitId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                atd: { type: string, format: date-time }
+      responses:
+        '200':
+          description: YardVisit đã DEPARTED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/YardVisit' }
+
+  /yard-visits/{yardVisitId}/close:
+    post:
+      tags: [management-yard-visit]
+      summary: >
+        DEPARTED → CLOSED, sau khi đối soát xong (FR-09.3). Vẫn CLOSED kể cả khi có
+        Event type=Dispute đang mở — tranh chấp xử lý riêng qua Invoice type=Other
+        (xem State Business mục 5, sự kiện #7).
+      parameters:
+        - $ref: '#/components/parameters/YardVisitId'
+      responses:
+        '200':
+          description: YardVisit đã CLOSED
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/YardVisit' }
+
+  # ============================================================
+  # FR-05, FR-09 — INSPECTION
+  # ============================================================
+  /yard-visits/{yardVisitId}/inspections:
+    parameters:
+      - $ref: '#/components/parameters/YardVisitId'
+    get:
+      tags: [management-inspection]
+      summary: Lịch sử Inspection của 1 Yard Visit
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Inspection' }
+    post:
+      tags: [management-inspection]
+      summary: >
+        Tạo Inspection (type=Gate-in/Gate-out/Ad-hoc). Kết quả tác động dây chuyền:
+        Fail ở Gate-in → YardVisit REJECTED + Event type=Rejected; hư hỏng vật lý phát
+        hiện (Gate-in/Gate-out/Ad-hoc) → Container MAINTENANCE/DAMAGED theo mức độ
+        (xem State Business mục 5, sự kiện #2, #3, #7).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InspectionCreate' }
+      responses:
+        '201':
+          description: Đã tạo Inspection
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Inspection' }
+
+  # ============================================================
+  # FR-06, FR-07, FR-08, FR-09 — MOVEMENT (đọc từ Management DB, ghi phối hợp Optimize Service)
+  # ============================================================
+  /movements:
+    get:
+      tags: [management-movement]
+      summary: Lịch sử Movement (theo yard_visit_id hoặc slot_id)
+      parameters:
+        - name: yard_visit_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: slot_id
+          in: query
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Movement' }
+
+  /movements/relocate:
+    post:
+      tags: [management-movement]
+      summary: >
+        Tạo Movement type=Relocation thủ công (FR-07.2) — Yard Visit đang IN_YARD.
+        Gọi nội bộ tới POST /optimize/slot-allocation/relocate (Yard Optimize Service)
+        để tính slot mới, tính cả disruption cost tới các slot lân cận (State Business
+        Case 3, mục 3.3).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [yard_visit_id, reason]
+              properties:
+                yard_visit_id: { type: string, format: uuid }
+                reason: { type: string }
+      responses:
+        '201':
+          description: Movement Relocation đã tạo, slot mới đã Occupied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Movement' }
+        '409':
+          description: Slot đích đã bị chiếm — từ chối, chọn lại
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ============================================================
+  # FR-07 — EVENT
+  # ============================================================
+  /events:
+    get:
+      tags: [management-event]
+      summary: Danh sách Event
+      parameters:
+        - name: yard_visit_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: event_type
+          in: query
+          schema: { $ref: '#/components/schemas/EventType' }
+        - name: resolution_status
+          in: query
+          description: "CHƯA CHỐT — xem State Business Case 5, mục 3.5"
+          schema: { type: string, enum: [Open, Resolved] }
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Event' }
+    post:
+      tags: [management-event]
+      summary: Ghi nhận Event (hải quan giữ, yêu cầu kiểm tra, tranh chấp...)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EventCreate' }
+      responses:
+        '201':
+          description: Đã tạo Event
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Event' }
+
+  /events/{eventId}/resolve:
+    post:
+      tags: [management-event]
+      summary: >
+        Đánh dấu Event đã giải quyết. CHƯA CHỐT (State Business Case 5): dùng để mở
+        khóa Yard Visit đang bị guard bởi Event Customs Hold/tương tự chưa resolve.
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolution_note: { type: string }
+      responses:
+        '200':
+          description: Event đã Resolved
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Event' }
+
+  # ============================================================
+  # FR-10 — INVOICE & PAYMENT
+  # ============================================================
+  /invoices:
+    get:
+      tags: [management-invoice]
+      summary: Danh sách Invoice (search/filter/sort/pagination)
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: contract_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: payment_status
+          in: query
+          schema: { $ref: '#/components/schemas/PaymentStatus' }
+        - name: invoice_type
+          in: query
+          schema: { $ref: '#/components/schemas/InvoiceType' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/InvoiceListResponse' }
+    post:
+      tags: [management-invoice]
+      summary: >
+        Tạo Invoice (Deposit / Storage Fee / Final Settlement / Other). Storage Fee tự
+        tính actual_storage_duration, overdue_days, base_storage_fee, surcharge_amount
+        (FR-10.1). Other dùng cho bồi thường tranh chấp (FR-09).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InvoiceCreate' }
+      responses:
+        '201':
+          description: Đã tạo Invoice
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+
+  /invoices/{invoiceId}:
+    parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [management-invoice]
+      summary: Chi tiết Invoice
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Invoice' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /invoices/{invoiceId}/payments:
+    parameters:
+      - name: invoiceId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [management-invoice]
+      summary: Lịch sử Payment của 1 Invoice
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Payment' }
+    post:
+      tags: [management-invoice]
+      summary: >
+        Ghi nhận 1 lần thanh toán (FR-10.3). payment_status tự cập nhật theo tổng
+        amount_paid: Unpaid → Partial → Paid (FR-10.4). KHÔNG ảnh hưởng Contract.status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/PaymentCreate' }
+      responses:
+        '201':
+          description: Đã ghi nhận Payment
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Payment' }
+        '400':
+          description: Tổng amount_paid vượt total_amount — cảnh báo thanh toán dư
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ============================================================
+  # FR-11 — TRA CỨU & BÁO CÁO
+  # ============================================================
+  /reports/my-containers:
+    get:
+      tags: [management-report]
+      summary: "Khách hàng tra cứu container/Yard Visit/Invoice/Payment của mình (FR-11.1)"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/YardVisit' }
+
+  /reports/slot-occupancy:
+    get:
+      tags: [management-report]
+      summary: "Dashboard tỷ lệ lấp đầy Slot theo block (FR-11.2)"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    block: { type: string }
+                    total_slots: { type: integer }
+                    occupied: { type: integer }
+                    reserved: { type: integer }
+                    blocked: { type: integer }
+                    occupancy_rate: { type: number, format: float }
+
+  /reports/overdue-containers:
+    get:
+      tags: [management-report]
+      summary: "Danh sách container sắp/đã vượt free time (FR-11.2)"
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/YardVisit' }
+
+  /reports/yard-visit-schedule:
+    get:
+      tags: [management-report]
+      summary: "Danh sách Yard Visit theo ETA/ETD, lịch thay đổi (FR-11.3)"
+      parameters:
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/YardVisit' }
+
+  /reports/revenue:
+    get:
+      tags: [management-report]
+      summary: "Báo cáo doanh thu, công nợ theo Contract (FR-11.4)"
+      parameters:
+        - name: contract_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_invoiced: { type: number }
+                  total_paid: { type: number }
+                  total_receivable: { type: number }
+                  by_contract:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        contract_id: { type: string, format: uuid }
+                        total_invoiced: { type: number }
+                        total_paid: { type: number }
+                        total_receivable: { type: number }
+
+  # ============================================================
+  # YARD OPTIMIZE SERVICE — SLOT
+  # ============================================================
+  /optimize/slots:
+    get:
+      tags: [optimize-slot]
+      summary: Danh sách Slot (search/filter/sort/pagination)
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/SlotStatus' }
+        - name: block
+          in: query
+          schema: { type: string }
+        - name: compatible_type
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SlotListResponse' }
+    post:
+      tags: [optimize-slot]
+      summary: Khai báo Slot mới (thiết lập sơ đồ bãi)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SlotCreate' }
+      responses:
+        '201':
+          description: Đã tạo (status mặc định Empty)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slot' }
+
+  /optimize/slots/{slotId}:
+    parameters:
+      - name: slotId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [optimize-slot]
+      summary: Chi tiết Slot
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slot' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [optimize-slot]
+      summary: Sửa thông tin Slot (compatible_type, has_power_supply...)
+      requestBody:
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SlotUpdate' }
+      responses:
+        '200':
+          description: Đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slot' }
+
+  /optimize/slots/{slotId}/block:
+    post:
+      tags: [optimize-slot]
+      summary: "Empty/Reserved → Blocked (sự cố hạ tầng tại vị trí)"
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason: { type: string }
+      responses:
+        '200':
+          description: Slot đã Blocked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slot' }
+
+  /optimize/slots/{slotId}/unblock:
+    post:
+      tags: [optimize-slot]
+      summary: "Blocked → Empty (hết sự cố/bảo trì xong)"
+      parameters:
+        - name: slotId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Slot đã Empty
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slot' }
+
+  # ============================================================
+  # FR-06, FR-07 — SLOT ALLOCATION
+  # ============================================================
+  /optimize/slot-allocation/propose:
+    post:
+      tags: [optimize-allocation]
+      summary: >
+        Đề xuất Slot phù hợp nhất còn Empty (FR-06.1). Tính điểm dựa trên
+        distance_to_gate, compatible_type, mức cân bằng tải. Slot chuyển Empty → Reserved.
+        Phản hồi phải < 2 giây với bãi quy mô hàng nghìn slot (NFR hiệu năng).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [yard_visit_id, container_type, size_type_code]
+              properties:
+                yard_visit_id: { type: string, format: uuid }
+                container_type: { type: string }
+                size_type_code: { type: string }
+                requires_power_supply: { type: boolean }
+      responses:
+        '200':
+          description: Slot được đề xuất (Reserved)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SlotAllocationResult' }
+        '409':
+          description: Không còn slot phù hợp — cảnh báo quá tải khu vực/loại container
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /optimize/slot-allocation/confirm:
+    post:
+      tags: [optimize-allocation]
+      summary: >
+        Xác nhận container đã Gate-in vào Slot (FR-06.2/06.3). Nếu còn đúng Slot đã
+        Reserved cho yard_visit_id này → Reserved → Occupied. Nếu không còn Reserved
+        hợp lệ → tính toán tức thời, Empty → Occupied trực tiếp (đường dự phòng).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [yard_visit_id]
+              properties:
+                yard_visit_id: { type: string, format: uuid }
+                slot_id:
+                  type: string
+                  format: uuid
+                  description: Bỏ trống nếu muốn hệ thống tự tính lại (fallback)
+      responses:
+        '200':
+          description: Slot đã Occupied
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SlotAllocationResult' }
+
+  /optimize/slot-allocation/release:
+    post:
+      tags: [optimize-allocation]
+      summary: >
+        Giải phóng Slot: Occupied → Empty (Gate-out) hoặc Reserved → Empty (container
+        không tới được nữa — hủy shipment/tai nạn/reject, Slot vẫn còn tốt — xem State
+        Business mục 4.4).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [slot_id]
+              properties:
+                slot_id: { type: string, format: uuid }
+                reason: { type: string }
+      responses:
+        '200':
+          description: Slot đã Empty
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Slot' }
+
+  /optimize/slot-allocation/relocate:
+    post:
+      tags: [optimize-allocation]
+      summary: >
+        Tính toán lại vị trí cho Relocation (FR-07.2) trên phạm vi TOÀN BÃI — cộng
+        thêm disruption cost tới các slot/container lân cận, tránh gián đoạn chuỗi lấy
+        hàng (State Business Case 3, mục 3.3). Dùng chung cho cả Relocation nội bộ và
+        Outbound Staging/Rehandle (FR-08).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [yard_visit_id, from_slot_id, reason]
+              properties:
+                yard_visit_id: { type: string, format: uuid }
+                from_slot_id: { type: string, format: uuid }
+                reason: { type: string }
+                prefer_near_gate:
+                  type: boolean
+                  description: "true khi dùng cho Outbound Staging (FR-08)"
+      responses:
+        '200':
+          description: Slot mới đã Occupied, Slot cũ đã Empty
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SlotAllocationResult' }
+        '409':
+          description: Slot đích đã bị chiếm — từ chối, chọn lại
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  # ============================================================
+  # HEALTH
+  # ============================================================
+  /health:
+    get:
+      tags: [health]
+      summary: Health check Management Service (và kết nối DB/Redis/Queue)
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+
+  /optimize/health:
+    get:
+      tags: [health]
+      summary: Health check Yard Optimize Service (và kết nối DB/Broker)
+      security: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthStatus' }
+
+# ================================================================
+# COMPONENTS
+# ================================================================
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    Search:
+      name: search
+      in: query
+      description: Tìm kiếm theo từ khóa
+      schema: { type: string }
+    Page:
+      name: page
+      in: query
+      schema: { type: integer, minimum: 1, default: 1 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+    Sort:
+      name: sort
+      in: query
+      description: "vd: -created_at,+name (nhiều trường, dấu - = giảm dần)"
+      schema: { type: string }
+    ContractId:
+      name: contractId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ContainerId:
+      name: containerId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ShipmentId:
+      name: shipmentId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    YardVisitId:
+      name: yardVisitId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+
+  responses:
+    NotFound:
+      description: Không tìm thấy
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    BadRequest:
+      description: Dữ liệu không hợp lệ
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Chưa xác thực / token không hợp lệ
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    # ---------- Common ----------
+    Error:
+      type: object
+      properties:
+        code: { type: string }
+        message: { type: string }
+        details: { type: object }
+
+    PaginationMeta:
+      type: object
+      properties:
+        page: { type: integer }
+        limit: { type: integer }
+        total: { type: integer }
+        total_pages: { type: integer }
+
+    AsyncJobAccepted:
+      type: object
+      properties:
+        job_id: { type: string, format: uuid }
+        status: { type: string, enum: [queued] }
+
+    HealthStatus:
+      type: object
+      properties:
+        status: { type: string, enum: [ok, degraded, down] }
+        database: { type: string, enum: [ok, down] }
+        redis: { type: string, enum: [ok, down] }
+        broker: { type: string, enum: [ok, down] }
+
+    AuthTokenPair:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer }
+
+    # ---------- Contract (FR-01) ----------
+    ContractStatus:
+      type: string
+      enum: [Draft, Active, Expired, Terminated]
+
+    Contract:
+      type: object
+      properties:
+        contract_id: { type: string, format: uuid }
+        customer_id: { type: string, format: uuid }
+        effective_date: { type: string, format: date }
+        expiry_date: { type: string, format: date }
+        unit_price: { type: number }
+        free_time_days:
+          type: integer
+          description: Áp dụng riêng cho MỖI Yard Visit (không phải quỹ chung — SRS v5 mục 2.2)
+        surcharge_rate: { type: number }
+        payment_terms: { type: string }
+        status: { $ref: '#/components/schemas/ContractStatus' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ContractCreate:
+      type: object
+      required: [customer_id, effective_date, expiry_date, unit_price, free_time_days, surcharge_rate]
+      properties:
+        customer_id: { type: string, format: uuid }
+        effective_date: { type: string, format: date }
+        expiry_date: { type: string, format: date }
+        unit_price: { type: number }
+        free_time_days: { type: integer }
+        surcharge_rate: { type: number }
+        payment_terms: { type: string }
+
+    ContractUpdate:
+      type: object
+      properties:
+        unit_price: { type: number }
+        free_time_days: { type: integer }
+        surcharge_rate: { type: number }
+        payment_terms: { type: string }
+        expiry_date: { type: string, format: date }
+
+    ContractListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Contract' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    # ---------- Container (FR-02) ----------
+    ContainerStatus:
+      type: string
+      enum: [AVAILABLE, MAINTENANCE, DAMAGED]
+      description: DAMAGED là trạng thái cuối (terminal) — State Business mục 4.3
+
+    Container:
+      type: object
+      properties:
+        container_id: { type: string, format: uuid }
+        container_code: { type: string, example: MSCU1234567 }
+        container_type: { type: string, enum: [Dry, Reefer, Tank, "Open Top"] }
+        size_type_code: { type: string }
+        tare_weight: { type: number }
+        max_gross_weight: { type: number }
+        max_payload: { type: number }
+        capacity: { type: number }
+        status: { $ref: '#/components/schemas/ContainerStatus' }
+        is_busy:
+          type: boolean
+          description: Derived — FR-02.4
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    ContainerCreate:
+      type: object
+      required: [container_code, container_type, size_type_code]
+      properties:
+        container_code: { type: string }
+        container_type: { type: string }
+        size_type_code: { type: string }
+        tare_weight: { type: number }
+        max_gross_weight: { type: number }
+        max_payload: { type: number }
+        capacity: { type: number }
+
+    ContainerUpdate:
+      type: object
+      properties:
+        container_type: { type: string }
+        size_type_code: { type: string }
+        tare_weight: { type: number }
+        max_gross_weight: { type: number }
+        max_payload: { type: number }
+        capacity: { type: number }
+
+    ContainerListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Container' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    # ---------- Shipment / Shipment_Container / Cargo (FR-03) ----------
+    ShipmentStatus:
+      type: string
+      enum: [Planned, "In Transit", Arrived, Completed]
+      description: Derived từ tập hợp YardVisit con — State Business mục 4.2
+
+    Shipment:
+      type: object
+      properties:
+        shipment_id: { type: string, format: uuid }
+        contract_id: { type: string, format: uuid }
+        shipper: { type: string }
+        consignee: { type: string }
+        carrier: { type: string }
+        origin: { type: string }
+        loading_port: { type: string }
+        discharge_port: { type: string }
+        vessel: { type: string }
+        voyage: { type: string }
+        status: { $ref: '#/components/schemas/ShipmentStatus' }
+        created_at: { type: string, format: date-time }
+
+    ShipmentCreate:
+      type: object
+      required: [contract_id, shipper, consignee, carrier]
+      properties:
+        contract_id: { type: string, format: uuid }
+        shipper: { type: string }
+        consignee: { type: string }
+        carrier: { type: string }
+        origin: { type: string }
+        loading_port: { type: string }
+        discharge_port: { type: string }
+        vessel: { type: string }
+        voyage: { type: string }
+
+    ShipmentUpdate:
+      type: object
+      properties:
+        shipper: { type: string }
+        consignee: { type: string }
+        carrier: { type: string }
+        loading_port: { type: string }
+        discharge_port: { type: string }
+        vessel: { type: string }
+        voyage: { type: string }
+
+    ShipmentListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Shipment' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    ShipmentContainer:
+      type: object
+      properties:
+        shipment_container_id: { type: string, format: uuid }
+        shipment_id: { type: string, format: uuid }
+        container_id: { type: string, format: uuid }
+        seal_number: { type: string }
+        seal_type: { type: string }
+        gross_weight_actual: { type: number }
+
+    ShipmentContainerCreate:
+      type: object
+      required: [container_id, seal_number, seal_type]
+      properties:
+        container_id: { type: string, format: uuid }
+        seal_number: { type: string }
+        seal_type: { type: string }
+        gross_weight_actual: { type: number }
+
+    Cargo:
+      type: object
+      properties:
+        cargo_id: { type: string, format: uuid }
+        shipment_container_id: { type: string, format: uuid }
+        cargo_type: { type: string }
+        weight: { type: number }
+        volume: { type: number }
+        is_hazardous: { type: boolean }
+        temperature_min: { type: number }
+        temperature_max: { type: number }
+        humidity_min: { type: number }
+        humidity_max: { type: number }
+        special_handling: { type: string }
+
+    CargoCreate:
+      type: object
+      required: [cargo_type, weight]
+      properties:
+        cargo_type: { type: string }
+        weight: { type: number }
+        volume: { type: number }
+        is_hazardous: { type: boolean, default: false }
+        temperature_min: { type: number }
+        temperature_max: { type: number }
+        humidity_min: { type: number }
+        humidity_max: { type: number }
+        special_handling: { type: string }
+
+    # ---------- YardVisit (FR-04/05/08/09) ----------
+    YardVisitStatus:
+      type: string
+      enum: [PLANNED, ARRIVED, IN_YARD, STAGING, DEPARTED, CLOSED, REJECTED, CANCELLED]
+      description: "CANCELLED là [MỚI] so với v4 — State Business mục 4.5"
+
+    YardVisit:
+      type: object
+      properties:
+        yard_visit_id: { type: string, format: uuid }
+        shipment_container_id: { type: string, format: uuid }
+        eta: { type: string, format: date-time }
+        etd: { type: string, format: date-time }
+        ata: { type: string, format: date-time, nullable: true }
+        atd: { type: string, format: date-time, nullable: true }
+        current_slot_id: { type: string, format: uuid, nullable: true }
+        free_time_days_snapshot: { type: integer }
+        status: { $ref: '#/components/schemas/YardVisitStatus' }
+        created_at: { type: string, format: date-time }
+
+    YardVisitCreate:
+      type: object
+      required: [shipment_container_id, eta]
+      properties:
+        shipment_container_id: { type: string, format: uuid }
+        eta: { type: string, format: date-time }
+        etd: { type: string, format: date-time }
+
+    YardVisitListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/YardVisit' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    # ---------- Inspection (FR-05/09) ----------
+    InspectionType:
+      type: string
+      enum: [Gate-in, Gate-out, Ad-hoc]
+      description: "Ad-hoc là [MỚI] so với v4 — hư hỏng phát hiện lúc Relocation, Case 4"
+
+    InspectionResult:
+      type: string
+      enum: [Pass, Fail]
+
+    Inspection:
+      type: object
+      properties:
+        inspection_id: { type: string, format: uuid }
+        yard_visit_id: { type: string, format: uuid }
+        inspection_type: { $ref: '#/components/schemas/InspectionType' }
+        seal_check: { type: boolean }
+        result: { $ref: '#/components/schemas/InspectionResult' }
+        fail_reason:
+          type: string
+          enum: [seal_mismatch, physical_damage_minor, physical_damage_severe, other]
+          nullable: true
+          description: >
+            Phân loại lý do Fail — quyết định Container có chuyển MAINTENANCE/DAMAGED
+            hay không (chỉ physical_damage_* mới kích hoạt, seal_mismatch thì không).
+        damage_notes: { type: string }
+        inspected_at: { type: string, format: date-time }
+        inspected_by: { type: string, format: uuid }
+
+    InspectionCreate:
+      type: object
+      required: [inspection_type, seal_check, result]
+      properties:
+        inspection_type: { $ref: '#/components/schemas/InspectionType' }
+        seal_check: { type: boolean }
+        result: { $ref: '#/components/schemas/InspectionResult' }
+        fail_reason:
+          type: string
+          enum: [seal_mismatch, physical_damage_minor, physical_damage_severe, other]
+        damage_notes: { type: string }
+
+    # ---------- Movement (FR-06/07/08/09) ----------
+    MovementType:
+      type: string
+      enum: [Gate-in, Relocation, Rehandle, Gate-out]
+
+    Movement:
+      type: object
+      properties:
+        movement_id: { type: string, format: uuid }
+        yard_visit_id: { type: string, format: uuid }
+        movement_type: { $ref: '#/components/schemas/MovementType' }
+        from_slot_id: { type: string, format: uuid, nullable: true }
+        to_slot_id: { type: string, format: uuid, nullable: true }
+        reason: { type: string }
+        moved_at: { type: string, format: date-time }
+        operator_id: { type: string, format: uuid }
+
+    # ---------- Event (FR-07) ----------
+    EventType:
+      type: string
+      enum: ["Customs Hold", Rejected, Dispute, "Damage During Movement", "Owner Request"]
+      description: "Dispute, Damage During Movement là [MỚI] so với v4"
+
+    Event:
+      type: object
+      properties:
+        event_id: { type: string, format: uuid }
+        yard_visit_id: { type: string, format: uuid }
+        event_type: { $ref: '#/components/schemas/EventType' }
+        description: { type: string }
+        requested_by: { type: string }
+        occurred_at: { type: string, format: date-time }
+        resolution_status:
+          type: string
+          enum: [Open, Resolved]
+          description: "[MỚI — CHƯA CHỐT] xem State Business Case 5, mục 3.5"
+
+    EventCreate:
+      type: object
+      required: [yard_visit_id, event_type]
+      properties:
+        yard_visit_id: { type: string, format: uuid }
+        event_type: { $ref: '#/components/schemas/EventType' }
+        description: { type: string }
+        requested_by: { type: string }
+
+    # ---------- Invoice & Payment (FR-10) ----------
+    InvoiceType:
+      type: string
+      enum: [Deposit, "Storage Fee", "Final Settlement", Other]
+
+    PaymentStatus:
+      type: string
+      enum: [Unpaid, Partial, Paid]
+
+    Invoice:
+      type: object
+      properties:
+        invoice_id: { type: string, format: uuid }
+        contract_id: { type: string, format: uuid }
+        yard_visit_id: { type: string, format: uuid, nullable: true }
+        invoice_type: { $ref: '#/components/schemas/InvoiceType' }
+        actual_storage_duration: { type: integer, nullable: true }
+        overdue_days: { type: integer, nullable: true }
+        base_storage_fee: { type: number, nullable: true }
+        surcharge_amount: { type: number, nullable: true }
+        total_amount: { type: number }
+        payment_status: { $ref: '#/components/schemas/PaymentStatus' }
+        issued_at: { type: string, format: date-time }
+
+    InvoiceCreate:
+      type: object
+      required: [contract_id, invoice_type, total_amount]
+      properties:
+        contract_id: { type: string, format: uuid }
+        yard_visit_id: { type: string, format: uuid }
+        invoice_type: { $ref: '#/components/schemas/InvoiceType' }
+        total_amount: { type: number }
+
+    InvoiceListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Invoice' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    Payment:
+      type: object
+      properties:
+        payment_id: { type: string, format: uuid }
+        invoice_id: { type: string, format: uuid }
+        amount_paid: { type: number }
+        payment_method: { type: string, enum: ["Bank Transfer", Cash, Card] }
+        payment_date: { type: string, format: date-time }
+        note: { type: string }
+
+    PaymentCreate:
+      type: object
+      required: [amount_paid, payment_method, payment_date]
+      properties:
+        amount_paid: { type: number }
+        payment_method: { type: string, enum: ["Bank Transfer", Cash, Card] }
+        payment_date: { type: string, format: date-time }
+        note: { type: string }
+
+    # ---------- Slot (Yard Optimize Service) ----------
+    SlotStatus:
+      type: string
+      enum: [Empty, Reserved, Occupied, Blocked]
+
+    Slot:
+      type: object
+      properties:
+        slot_id: { type: string, format: uuid }
+        block: { type: string }
+        row: { type: string }
+        tier: { type: string }
+        distance_to_gate: { type: number }
+        compatible_type: { type: string }
+        has_power_supply: { type: boolean }
+        status: { $ref: '#/components/schemas/SlotStatus' }
+
+    SlotCreate:
+      type: object
+      required: [block, row, tier, distance_to_gate]
+      properties:
+        block: { type: string }
+        row: { type: string }
+        tier: { type: string }
+        distance_to_gate: { type: number }
+        compatible_type: { type: string }
+        has_power_supply: { type: boolean, default: false }
+
+    SlotUpdate:
+      type: object
+      properties:
+        compatible_type: { type: string }
+        has_power_supply: { type: boolean }
+
+    SlotListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Slot' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    SlotAllocationResult:
+      type: object
+      properties:
+        slot: { $ref: '#/components/schemas/Slot' }
+        score: { type: number, description: Điểm số theo thuật toán scoring FR-06 }
+        score_breakdown:
+          type: object
+          properties:
+            distance_score: { type: number }
+            compatibility_score: { type: number }
+            load_balance_score: { type: number }
+            disruption_cost:
+              type: number
+              description: Chỉ có khi dùng cho Relocation (FR-07, State Business Case 3)
