@@ -1,0 +1,59 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mxfile host="app.diagrams.net" version="24.7.5">
+  <diagram id="hld-kho-bai-container" name="HLD - Kho bai Container">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="954" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="client" value="&lt;b style=&quot;font-size:15px&quot;&gt;Client (Web / Mobile)&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#dae8fc;strokeColor=#666666;fontSize=12.5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="440.0" y="40" width="220" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="gateway" value="&lt;b style=&quot;font-size:15px&quot;&gt;API Gateway&lt;/b&gt;&lt;br&gt;Xác thực JWT / OAuth2&lt;br&gt;Rate limit &amp; CORS&lt;br&gt;Định tuyến request" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#e1d5e7;strokeColor=#666666;fontSize=12.5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="430.0" y="155" width="240" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="mgmt" value="&lt;b style=&quot;font-size:15px&quot;&gt;Management Service&lt;/b&gt;&lt;br&gt;CRUD nghiệp vụ:&lt;br&gt;Contract, Shipment, Container,&lt;br&gt;Yard Visit, Inspection, Movement,&lt;br&gt;Event, Invoice, Payment" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#dae8fc;strokeColor=#666666;fontSize=12.5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="210.0" y="337" width="300" height="131" as="geometry" />
+        </mxCell>
+        <mxCell id="optimize" value="&lt;b style=&quot;font-size:15px&quot;&gt;Yard Optimize Service&lt;/b&gt;&lt;br&gt;Slot Allocation &amp; Re-plan&lt;br&gt;Thuật toán scoring vị trí&lt;br&gt;Xử lý Event → tính lại Movement" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#ffe6cc;strokeColor=#666666;fontSize=12.5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="590.0" y="337" width="300" height="112" as="geometry" />
+        </mxCell>
+        <mxCell id="broker" value="&lt;b style=&quot;font-size:15px&quot;&gt;Message Broker (Queue)&lt;/b&gt;&lt;br&gt;vd: RabbitMQ / Kafka&lt;br&gt;Giao tiếp bất đồng bộ giữa 2 service" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#f8cecc;strokeColor=#666666;fontSize=12.5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="400.0" y="538" width="300" height="93" as="geometry" />
+        </mxCell>
+        <mxCell id="mgmt_db" value="&lt;b style=&quot;font-size:15px&quot;&gt;Management DB&lt;/b&gt;&lt;br&gt;Contract, Shipment, Container,&lt;br&gt;YardVisit, Invoice, Payment..." style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#d5e8d4;strokeColor=#666666;fontSize=12.5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="92.0" y="701" width="252" height="93" as="geometry" />
+        </mxCell>
+        <mxCell id="opt_db" value="&lt;b style=&quot;font-size:15px&quot;&gt;Optimize DB&lt;/b&gt;&lt;br&gt;Slot (yard layout)" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#d5e8d4;strokeColor=#666666;fontSize=12.5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="640.0" y="701" width="200" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="redis" value="&lt;b style=&quot;font-size:15px&quot;&gt;Redis (Cache)&lt;/b&gt;&lt;br&gt;Slot trống, container tra cứu" style="rounded=1;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;fillColor=#fff2cc;strokeColor=#666666;fontSize=12.5;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="384.0" y="701" width="244" height="74" as="geometry" />
+        </mxCell>
+        <mxCell id="e0" value="HTTPS" style="html=1;endArrow=block;rounded=0;strokeColor=#444444;fontSize=10.5;" edge="1" parent="1" source="client" target="gateway">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" value="REST" style="html=1;endArrow=block;rounded=0;strokeColor=#444444;fontSize=10.5;" edge="1" parent="1" source="gateway" target="mgmt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" value="REST (yard map, tra cứu Slot)" style="html=1;endArrow=block;rounded=0;strokeColor=#444444;fontSize=10.5;" edge="1" parent="1" source="gateway" target="optimize">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" value="" style="html=1;endArrow=block;rounded=0;strokeColor=#444444;fontSize=10.5;" edge="1" parent="1" source="mgmt" target="mgmt_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e4" value="cache" style="html=1;endArrow=block;rounded=0;strokeColor=#444444;fontSize=10.5;" edge="1" parent="1" source="mgmt" target="redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e5" value="" style="html=1;endArrow=block;rounded=0;strokeColor=#444444;fontSize=10.5;" edge="1" parent="1" source="optimize" target="opt_db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e6" value="publish: ContainerReadyForAllocation,&#10;ReplanRequested, ContainerDeparted" style="html=1;endArrow=block;rounded=0;strokeColor=#444444;fontSize=10.5;startArrow=block;startFill=1;" edge="1" parent="1" source="mgmt" target="broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e7" value="publish: SlotAllocated,&#10;RelocationProposed" style="html=1;endArrow=block;rounded=0;strokeColor=#444444;fontSize=10.5;startArrow=block;startFill=1;" edge="1" parent="1" source="optimize" target="broker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
