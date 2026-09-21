@@ -1,0 +1,29 @@
+// Prisma schema — Yard Optimize Service
+// Dùng chung 1 PostgreSQL instance với Management Service, tách riêng schema "optimize".
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["optimize"]
+}
+
+// Placeholder — sẽ mở rộng đủ trường theo docs/SRS_Quan_ly_kho_bai_container_v5.docx mục 4.6
+// và state machine ở docs/State_Business_Kho_bai_Container_v1.docx mục 4.4.
+model Slot {
+  slotId           String   @id @default(uuid()) @map("slot_id")
+  block            String
+  row              String
+  tier             String
+  distanceToGate   Decimal  @map("distance_to_gate")
+  compatibleType   String?  @map("compatible_type")
+  hasPowerSupply   Boolean  @default(false) @map("has_power_supply")
+  status           String   @default("Empty")
+
+  @@map("slot")
+  @@schema("optimize")
+}

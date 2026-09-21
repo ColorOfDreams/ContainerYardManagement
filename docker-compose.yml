@@ -1,0 +1,122 @@
+# docker-compose.yml — orchestrate toàn bộ hạ tầng cho môi trường DEV/local.
+# Mỗi "service" dưới đây = 1 container. "networks" = mạng ảo riêng để các
+# container gọi nhau bằng TÊN SERVICE (vd management-service gọi "postgres:5432",
+# không phải localhost) — đây là điểm khác biệt cốt lõi so với chạy app trên máy thật.
+
+networks:
+  cyms-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+
+services:
+  # ---------------------------------------------------------------
+  # PostgreSQL — 1 instance dùng chung, 2 schema riêng (management/optimize)
+  # ---------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      # Volume đặt tên (named volume) — dữ liệu sống ngoài vòng đời container,
+      # xóa/tạo lại container không mất data; chỉ mất khi xóa volume tường minh.
+      - postgres-data:/var/lib/postgresql/data
+      # Script trong db/init chỉ chạy 1 LẦN lúc volume còn trống (tạo 2 schema).
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [cyms-net]
+
+  # ---------------------------------------------------------------
+  # Redis — cache slot trống, tra cứu container tần suất cao
+  # ---------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [cyms-net]
+
+  # ---------------------------------------------------------------
+  # RabbitMQ — Message Broker giao tiếp bất đồng bộ giữa 2 service
+  # (bản có sẵn UI quản lý tại cổng 15672)
+  # ---------------------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    ports:
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_UI_PORT}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [cyms-net]
+
+  # ---------------------------------------------------------------
+  # Management Service — CRUD nghiệp vụ chính
+  # ---------------------------------------------------------------
+  management-service:
+    build:
+      context: ./app/backend/Management
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: ${MANAGEMENT_DATABASE_URL}
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+    ports:
+      - "${MANAGEMENT_SERVICE_PORT}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [cyms-net]
+
+  # ---------------------------------------------------------------
+  # Yard Optimize Service — Slot Allocation & Re-plan
+  # ---------------------------------------------------------------
+  optimize-service:
+    build:
+      context: ./app/backend/Optimize
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3002
+      DATABASE_URL: ${OPTIMIZE_DATABASE_URL}
+      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+    ports:
+      - "${OPTIMIZE_SERVICE_PORT}:3002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    networks: [cyms-net]

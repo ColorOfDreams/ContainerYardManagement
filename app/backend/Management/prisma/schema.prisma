@@ -1,0 +1,36 @@
+// Prisma schema — Management Service
+// Dùng chung 1 PostgreSQL instance với Yard Optimize Service, nhưng tách riêng
+// schema "management" (multiSchema) — xem docs/SRS_HLD_Kho_bai_Container_v3.drawio
+// và docs/State_Business_Kho_bai_Container_v1.docx mục quyết định 1 DB/2 schema.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["management"]
+}
+
+// Model khởi động (placeholder) để xác nhận kết nối DB + schema hoạt động.
+// Sẽ thay bằng đầy đủ 11 entity theo docs/SRS_Quan_ly_kho_bai_container_v5.docx mục 4
+// (Contract, Container, Shipment, Shipment_Container, Cargo, YardVisit, Inspection,
+// Movement, Event, Invoice, Payment) ở bước tiếp theo.
+model Contract {
+  contractId    String   @id @default(uuid()) @map("contract_id")
+  customerId    String   @map("customer_id")
+  effectiveDate DateTime @map("effective_date")
+  expiryDate    DateTime @map("expiry_date")
+  unitPrice     Decimal  @map("unit_price")
+  freeTimeDays  Int      @map("free_time_days")
+  surchargeRate Decimal  @map("surcharge_rate")
+  paymentTerms  String?  @map("payment_terms")
+  status        String   @default("Draft")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("contract")
+  @@schema("management")
+}

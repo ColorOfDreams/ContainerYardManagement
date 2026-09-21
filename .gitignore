@@ -1,0 +1,27 @@
+# Tài liệu nội bộ — không push công khai (xem README.md mục "Tài liệu nội bộ")
+docs/
+internal-docs/
+
+# Secrets — không bao giờ commit
+.env
+.env.local
+*.env
+
+# Node
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+
+# Prisma
+app/backend/*/prisma/migrations/dev.db
+
+# Docker
+docker-compose.override.yml
+
+# OS / Editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
