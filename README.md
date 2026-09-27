@@ -86,6 +86,23 @@ Chi tiết luồng event (publish/consume qua Broker):
    docker compose exec management-service npm run prisma:seed
    ```
 
+4. (Tuỳ chọn) Sinh sẵn dữ liệu demo/test — hàng ngàn dòng trải đều mọi bảng (Contract, Container, Shipment, Yard Visit, Inspection, Movement, Event, Invoice, Payment...) và 6 tài khoản theo từng role, để có dữ liệu thật ngay khi mở Swagger/Postman thay vì phải tạo tay:
+
+   ```bash
+   docker compose exec management-service npm run prisma:seed:fake
+   ```
+
+   Chạy lại nhiều lần sẽ cộng dồn thêm dữ liệu mới (không xoá dữ liệu cũ). Tài khoản demo dùng chung mật khẩu `Passw0rd1`:
+
+   | Email | Role |
+   |---|---|
+   | `admin2@example.local` | ADMIN (full quyền) |
+   | `dispatcher@example.local` | DISPATCHER |
+   | `operator@example.local` | OPERATOR |
+   | `inspector@example.local` | INSPECTOR |
+   | `accountant@example.local` | ACCOUNTANT |
+   | `viewer@example.local` | VIEWER |
+
 ### Các endpoint chính (Management Service — mặc định cổng `3001`, đổi qua `MANAGEMENT_SERVICE_PORT`)
 
 3 endpoint dưới đây là điểm vào đặc biệt để **kiểm tra/test** service — không phải API nghiệp vụ như các route còn lại:
@@ -97,3 +114,11 @@ Chi tiết luồng event (publish/consume qua Broker):
 | [http://localhost:3001/docs-json](http://localhost:3001/docs-json) | **OpenAPI spec (JSON)** tự sinh từ code — dùng để import vào Postman (Import → Link), hoặc các công cụ sinh client/API doc khác. Luôn khớp 1-1 với API thật vì lấy trực tiếp từ decorator trong code, không cần đồng bộ tay. |
 
 Yard Optimize Service (`OPTIMIZE_SERVICE_PORT`, mặc định `3002`) hiện chỉ có `GET /health` — các endpoint Slot Allocation chưa triển khai.
+
+### Test tự động bằng Postman
+
+[postman/ContainerYardManagement.postman_collection.json](postman/ContainerYardManagement.postman_collection.json) — import vào Postman rồi bấm **Run** (Collection Runner) để chạy tuần tự toàn bộ API hiện có (login → tạo permission/role/user/contract → activate/terminate → refresh/logout), tự lưu token và id giữa các bước, mỗi request có sẵn assertion pass/fail — không cần tự tay gọi và kiểm tra từng endpoint. Chạy ngoài Postman (CI/terminal) bằng [Newman](https://www.npmjs.com/package/newman):
+
+```bash
+npx newman run postman/ContainerYardManagement.postman_collection.json
+```
