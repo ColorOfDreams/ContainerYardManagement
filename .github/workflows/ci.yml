@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cyms_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: cyms
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U cyms_user -d cyms"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://cyms_user:ci_password@localhost:5432/cyms?schema=management
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            app/backend/Management/package-lock.json
+            app/backend/Optimize/package-lock.json
+
+      - name: Create PostgreSQL schemas
+        env:
+          PGPASSWORD: ci_password
+        run: psql -h localhost -U cyms_user -d cyms -c 'CREATE SCHEMA management; CREATE SCHEMA optimize;'
+
+      - name: Verify Management migrations and build
+        working-directory: app/backend/Management
+        run: |
+          npm ci
+          npx prisma migrate deploy
+          npm run prisma:generate
+          npm run build
+
+      - name: Verify Optimize build
+        working-directory: app/backend/Optimize
+        run: |
+          npm ci
+          npm run build
+
+      - name: Validate Docker Compose configuration
+        env:
+          POSTGRES_USER: cyms_user
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: cyms
+          POSTGRES_PORT: 5432
+          MANAGEMENT_DATABASE_URL: postgresql://cyms_user:ci_password@postgres:5432/cyms?schema=management
+          OPTIMIZE_DATABASE_URL: postgresql://cyms_user:ci_password@postgres:5432/cyms?schema=optimize
+          MANAGEMENT_SERVICE_PORT: 3001
+          OPTIMIZE_SERVICE_PORT: 3002
+          REDIS_PORT: 6379
+          RABBITMQ_USER: cyms_user
+          RABBITMQ_PASSWORD: ci_password
+          RABBITMQ_PORT: 5672
+          RABBITMQ_MANAGEMENT_UI_PORT: 15672
+          JWT_ACCESS_SECRET: ci_access_secret
+          JWT_REFRESH_SECRET: ci_refresh_secret
+        run: docker compose --profile full config --quiet

@@ -22,6 +22,7 @@ async function bootstrap() {
     .setTitle('Management Service API')
     .setDescription('CRUD nghiệp vụ: Contract, Shipment, Container, YardVisit, Inspection, Movement, Event, Invoice, Payment')
     .setVersion('0.1.0')
+    .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);

@@ -1,5 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
-import { ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { PermissionsGuard } from '../auth/permissions.guard';
+import { RequirePermissions } from '../auth/permissions.decorator';
 import { ContractService } from './contract.service';
 import { CreateContractDto } from './dto/create-contract.dto';
 import { UpdateContractDto } from './dto/update-contract.dto';
@@ -22,36 +25,44 @@ import { UpdateContractDto } from './dto/update-contract.dto';
 // nguyên — không phải viết lại nghiệp vụ.
 // ============================================================
 @ApiTags('management-contract')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('contracts')
 export class ContractController {
   constructor(private readonly contractService: ContractService) {}
 
   @Post()
+  @RequirePermissions('contract:create')
   create(@Body() dto: CreateContractDto) {
     return this.contractService.create(dto);
   }
 
   @Get()
+  @RequirePermissions('contract:read')
   findAll() {
     return this.contractService.findAll();
   }
 
   @Get(':contractId')
+  @RequirePermissions('contract:read')
   findOne(@Param('contractId') contractId: string) {
     return this.contractService.findOne(contractId);
   }
 
   @Patch(':contractId')
+  @RequirePermissions('contract:update')
   update(@Param('contractId') contractId: string, @Body() dto: UpdateContractDto) {
     return this.contractService.update(contractId, dto);
   }
 
   @Post(':contractId/activate')
+  @RequirePermissions('contract:activate')
   activate(@Param('contractId') contractId: string) {
     return this.contractService.activate(contractId);
   }
 
   @Post(':contractId/terminate')
+  @RequirePermissions('contract:terminate')
   terminate(@Param('contractId') contractId: string, @Body('reason') reason: string) {
     return this.contractService.terminate(contractId, reason);
   }

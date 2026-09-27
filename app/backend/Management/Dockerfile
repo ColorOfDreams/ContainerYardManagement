@@ -11,12 +11,15 @@ WORKDIR /app
 # Copy package.json trước, cài dependencies trước khi copy code còn lại:
 # Docker cache layer theo từng lệnh — nếu package.json không đổi, lần build
 # sau sẽ tái dùng cache ở bước "npm ci" này, không cài lại từ đầu => build nhanh hơn.
-COPY package.json package-lock.json* ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 
 # ---------- STAGE 2: build — biên dịch TypeScript + sinh Prisma Client ----------
 FROM node:22-alpine AS build
 WORKDIR /app
+# Prisma generate also probes OpenSSL to select the query engine. Keep the
+# builder aligned with the Alpine production runtime so generation is stable.
+RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npx prisma generate
@@ -27,17 +30,22 @@ FROM node:22-alpine AS production
 WORKDIR /app
 ENV NODE_ENV=production
 
-COPY package.json package-lock.json* ./
+# Prisma needs the OpenSSL 3 runtime in current Alpine images to select and
+# load the linux-musl-openssl-3.0.x query engine.
+RUN apk add --no-cache openssl
+
+COPY package.json package-lock.json ./
 # Chỉ cài dependencies production (bỏ qua devDependencies như @nestjs/cli, typescript...)
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 
 # Lấy code đã build (dist/) và Prisma Client đã generate từ stage build,
 # không copy source .ts hay node_modules dev vào image cuối.
-COPY --from=build /app/dist ./dist
-COPY --from=build /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=build /app/prisma ./prisma
+COPY --chown=node:node --from=build /app/dist ./dist
+COPY --chown=node:node --from=build /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3001
+
+USER node
 
 # Healthcheck để docker-compose/Docker biết container đã "khỏe" hay chưa
 # (dùng chính endpoint GET /health đã viết trong health.controller.ts)

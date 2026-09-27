@@ -56,6 +56,14 @@ Chi tiết luồng event (publish/consume qua Broker):
 docker compose up --build
 ```
 
+Lệnh mặc định chỉ chạy PostgreSQL và Management Service — đủ cho giai đoạn
+CRUD hiện tại. Khi bắt đầu tích hợp cache, message broker và Slot Allocation,
+chạy toàn bộ hạ tầng bằng:
+
+```bash
+docker compose --profile full up --build
+```
+
 - API Gateway: `http://localhost:<port>`
 - Swagger docs: `http://localhost:<port>/docs`
 - Health check: `GET /health`

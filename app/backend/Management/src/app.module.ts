@@ -3,6 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { HealthController } from './health/health.controller';
 import { PrismaModule } from './prisma/prisma.module';
 import { ContractModule } from './contract/contract.module';
+import { AuthModule } from './auth/auth.module';
+import { UsersModule } from './users/users.module';
+import { RolesModule } from './roles/roles.module';
+import { PermissionsModule } from './permissions/permissions.module';
 
 // ============================================================
 // AppModule — module GỐC (root), nơi "lắp ráp" toàn bộ ứng dụng.
@@ -15,7 +19,11 @@ import { ContractModule } from './contract/contract.module';
       isGlobal: true,
     }),
     PrismaModule,
+    AuthModule,
     ContractModule,
+    UsersModule,
+    RolesModule,
+    PermissionsModule,
   ],
   controllers: [HealthController],
 })

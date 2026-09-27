@@ -51,6 +51,7 @@ services:
       timeout: 5s
       retries: 10
     networks: [cyms-net]
+    profiles: [full]
 
   # ---------------------------------------------------------------
   # RabbitMQ — Message Broker giao tiếp bất đồng bộ giữa 2 service
@@ -73,6 +74,7 @@ services:
       timeout: 5s
       retries: 10
     networks: [cyms-net]
+    profiles: [full]
 
   # ---------------------------------------------------------------
   # Management Service — CRUD nghiệp vụ chính
@@ -86,17 +88,16 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: ${MANAGEMENT_DATABASE_URL}
-      REDIS_URL: redis://redis:6379
-      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-7}
     ports:
       - "${MANAGEMENT_SERVICE_PORT}:3001"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
+    init: true
     networks: [cyms-net]
 
   # ---------------------------------------------------------------
@@ -107,6 +108,7 @@ services:
       context: ./app/backend/Optimize
       dockerfile: Dockerfile
     restart: unless-stopped
+    profiles: [full]
     environment:
       NODE_ENV: production
       PORT: 3002
@@ -119,4 +121,5 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    init: true
     networks: [cyms-net]

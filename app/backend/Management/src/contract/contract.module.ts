@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ContractController } from './contract.controller';
 import { ContractService } from './contract.service';
+import { AuthModule } from '../auth/auth.module';
 
 // ============================================================
 // ContractModule — "hộp" đóng gói mọi thứ liên quan tới 1 domain (Contract).
@@ -18,6 +19,7 @@ import { ContractService } from './contract.service';
 // Active" — lúc đó ContractModule sẽ export thêm ContractService).
 // ============================================================
 @Module({
+  imports: [AuthModule],
   controllers: [ContractController],
   providers: [ContractService],
 })
