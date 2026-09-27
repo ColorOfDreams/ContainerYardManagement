@@ -42,6 +42,9 @@ RUN npm ci --omit=dev
 # không copy source .ts hay node_modules dev vào image cuối.
 COPY --chown=node:node --from=build /app/dist ./dist
 COPY --chown=node:node --from=build /app/node_modules/.prisma ./node_modules/.prisma
+# schema.prisma + migrations/ (và seed.js) — cần cho `prisma migrate deploy` /
+# `npm run prisma:seed` chạy được ngay trong container production.
+COPY --chown=node:node --from=build /app/prisma ./prisma
 
 EXPOSE 3001
 

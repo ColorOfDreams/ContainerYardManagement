@@ -44,35 +44,56 @@ Chi tiết luồng event (publish/consume qua Broker):
 
 ```
 .
-├── management-service/
-├── yard-optimize-service/
+├── app/
+│   ├── backend/
+│   │   ├── Management/   # Management Service (NestJS + Prisma) — Auth/RBAC, Contract...
+│   │   └── Optimize/     # Yard Optimize Service (NestJS + Prisma) — skeleton, chưa triển khai
+│   └── frontend/
+│       └── Managemnet/   # chưa triển khai
+├── db/init/               # script tạo schema Postgres (management, optimize)
+├── docs/                  # tài liệu nội bộ (SRS, ERD, HLD, API spec...), không push công khai
+├── postman/               # collection/environment Postman để test API
+├── tests/
 ├── docker-compose.yml
+├── .env.example
 └── README.md
 ```
 
 ## Chạy dự án
 
-```bash
-docker compose up --build
-```
+1. Tạo file cấu hình local (không commit):
 
-Lệnh mặc định chỉ chạy PostgreSQL và Management Service — đủ cho giai đoạn
-CRUD hiện tại. Khi bắt đầu tích hợp cache, message broker và Slot Allocation,
-chạy toàn bộ hạ tầng bằng:
+   ```bash
+   cp .env.example .env
+   ```
 
-```bash
-docker compose --profile full up --build
-```
+2. Chạy hạ tầng. Mặc định chỉ chạy PostgreSQL và Management Service — đủ cho giai đoạn CRUD/Auth hiện tại:
 
-- API Gateway: `http://localhost:<port>`
-- Swagger docs: `http://localhost:<port>/docs`
-- Health check: `GET /health`
+   ```bash
+   docker compose up -d --build
+   ```
 
-## Tài liệu nội bộ
+   Khi bắt đầu tích hợp Redis, RabbitMQ và Yard Optimize Service (Slot Allocation), chạy toàn bộ hạ tầng bằng:
 
-Các tài liệu chi tiết (SRS, ERD, Use Case Diagram, HLD đầy đủ...) là tài liệu nội bộ, **không push lên repository công khai** — lưu trữ riêng (Drive/Notion nội bộ nhóm). Thêm vào `.gitignore`:
+   ```bash
+   docker compose --profile full up -d --build
+   ```
 
-```
-docs/
-internal-docs/
-```
+3. Lần chạy đầu tiên (hoặc sau khi thêm migration mới) cần apply schema Prisma và tạo tài khoản Admin đầu tiên — xem `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` trong `.env`:
+
+   ```bash
+   docker compose exec management-service npx prisma migrate deploy
+   docker compose exec management-service npm run prisma:seed
+   ```
+
+### Các endpoint chính (Management Service — mặc định cổng `3001`, đổi qua `MANAGEMENT_SERVICE_PORT`)
+
+3 endpoint dưới đây là điểm vào đặc biệt để **kiểm tra/test** service — không phải API nghiệp vụ như các route còn lại:
+
+| Endpoint | Công dụng |
+|---|---|
+| [http://localhost:3001/health](http://localhost:3001/health) | Health check — service (và kết nối DB) đã sẵn sàng hay chưa; dùng cho Docker healthcheck/CI. |
+| [http://localhost:3001/docs](http://localhost:3001/docs) | **Swagger UI** — giao diện xem và thử trực tiếp toàn bộ API (request/response mẫu, thử nhanh không cần Postman). Endpoint cần JWT thì bấm nút "Authorize" và dán access token lấy từ `POST /auth/login`. |
+| [http://localhost:3001/docs-json](http://localhost:3001/docs-json) | **OpenAPI spec (JSON)** tự sinh từ code — dùng để import vào Postman (Import → Link), hoặc các công cụ sinh client/API doc khác. Luôn khớp 1-1 với API thật vì lấy trực tiếp từ decorator trong code, không cần đồng bộ tay. |
+
+Yard Optimize Service (`OPTIMIZE_SERVICE_PORT`, mặc định `3002`) hiện chỉ có `GET /health` — các endpoint Slot Allocation chưa triển khai.
