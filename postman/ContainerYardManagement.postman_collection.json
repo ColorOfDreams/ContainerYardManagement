@@ -21,7 +21,15 @@
     { "key": "roleId", "value": "" },
     { "key": "testUserEmail", "value": "" },
     { "key": "userId", "value": "" },
-    { "key": "contractId", "value": "" }
+    { "key": "contractId", "value": "" },
+    { "key": "containerId", "value": "" },
+    { "key": "containerId2", "value": "" },
+    { "key": "shipmentId", "value": "" },
+    { "key": "shipmentContainerId", "value": "" },
+    { "key": "yardVisitId", "value": "" },
+    { "key": "eventId", "value": "" },
+    { "key": "invoiceId", "value": "" },
+    { "key": "invoiceTotalAmount", "value": "" }
   ],
   "item": [
     {
@@ -390,7 +398,735 @@
             }
           ],
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "Containers",
+      "item": [
+        {
+          "name": "Create container",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"containerCode\": \"TCU{{$timestamp}}\",\n  \"containerType\": \"Dry Van\",\n  \"sizeTypeCode\": \"40HC\",\n  \"tareWeight\": 3800,\n  \"maxGrossWeight\": 30480,\n  \"maxPayload\": 26680\n}" },
+            "url": { "raw": "{{baseUrl}}/containers", "host": ["{{baseUrl}}"], "path": ["containers"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Container created (201)', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status starts AVAILABLE', () => pm.expect(json.status).to.eql('AVAILABLE'));",
+                  "pm.collectionVariables.set('containerId', json.containerId);"
+                ]
+              }
+            }
+          ],
+          "response": []
         },
+        {
+          "name": "List containers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/containers", "host": ["{{baseUrl}}"], "path": ["containers"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Get container by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/containers/{{containerId}}", "host": ["{{baseUrl}}"], "path": ["containers", "{{containerId}}"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Get OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Update container",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"capacity\": 76.4\n}" },
+            "url": { "raw": "{{baseUrl}}/containers/{{containerId}}", "host": ["{{baseUrl}}"], "path": ["containers", "{{containerId}}"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Update OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Container maintenance (AVAILABLE->MAINTENANCE)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/containers/{{containerId}}/maintenance", "host": ["{{baseUrl}}"], "path": ["containers", "{{containerId}}", "maintenance"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Maintenance OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is MAINTENANCE', () => pm.expect(pm.response.json().status).to.eql('MAINTENANCE'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Container available (MAINTENANCE->AVAILABLE)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/containers/{{containerId}}/available", "host": ["{{baseUrl}}"], "path": ["containers", "{{containerId}}", "available"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Available OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is AVAILABLE', () => pm.expect(pm.response.json().status).to.eql('AVAILABLE'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create container 2 (for damage test)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"containerCode\": \"DMG{{$timestamp}}\",\n  \"containerType\": \"Dry Van\",\n  \"sizeTypeCode\": \"20GP\"\n}" },
+            "url": { "raw": "{{baseUrl}}/containers", "host": ["{{baseUrl}}"], "path": ["containers"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Container 2 created (201)', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('containerId2', pm.response.json().containerId);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Container damage (terminal)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/containers/{{containerId2}}/damage", "host": ["{{baseUrl}}"], "path": ["containers", "{{containerId2}}", "damage"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Damage OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is DAMAGED', () => pm.expect(pm.response.json().status).to.eql('DAMAGED'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Container available after DAMAGED (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/containers/{{containerId2}}/available", "host": ["{{baseUrl}}"], "path": ["containers", "{{containerId2}}", "available"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('DAMAGED is terminal (409)', () => pm.response.to.have.status(409));"] } }],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Shipments",
+      "item": [
+        {
+          "name": "Create shipment (requires Contract Active)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"contractId\": \"{{contractId}}\",\n  \"shipper\": \"Song Hong Logistics\",\n  \"consignee\": \"Viet Thinh Trading\",\n  \"carrier\": \"Maersk Line\",\n  \"loadingPort\": \"Cat Lai\",\n  \"dischargePort\": \"Singapore\"\n}" },
+            "url": { "raw": "{{baseUrl}}/shipments", "host": ["{{baseUrl}}"], "path": ["shipments"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Shipment created (201)', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status starts as Planned', () => pm.expect(json.status).to.eql('Planned'));",
+                  "pm.collectionVariables.set('shipmentId', json.shipmentId);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List shipments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/shipments", "host": ["{{baseUrl}}"], "path": ["shipments"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Get shipment by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/shipments/{{shipmentId}}", "host": ["{{baseUrl}}"], "path": ["shipments", "{{shipmentId}}"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Get OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Update shipment",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"vessel\": \"Maersk 123\",\n  \"voyage\": \"V101N\"\n}" },
+            "url": { "raw": "{{baseUrl}}/shipments/{{shipmentId}}", "host": ["{{baseUrl}}"], "path": ["shipments", "{{shipmentId}}"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Update OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Add container to shipment (declares seal)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"containerId\": \"{{containerId}}\",\n  \"sealNumber\": \"SL{{$timestamp}}\",\n  \"sealType\": \"Bolt Seal\",\n  \"grossWeightActual\": 18000\n}" },
+            "url": { "raw": "{{baseUrl}}/shipments/{{shipmentId}}/containers", "host": ["{{baseUrl}}"], "path": ["shipments", "{{shipmentId}}", "containers"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Attached (201)', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('shipmentContainerId', pm.response.json().shipmentContainerId);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List containers of shipment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/shipments/{{shipmentId}}/containers", "host": ["{{baseUrl}}"], "path": ["shipments", "{{shipmentId}}", "containers"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Add cargo to shipment-container",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"cargoType\": \"Electronics\",\n  \"weight\": 12000,\n  \"volume\": 45.5,\n  \"isHazardous\": false\n}" },
+            "url": { "raw": "{{baseUrl}}/shipment-containers/{{shipmentContainerId}}/cargo", "host": ["{{baseUrl}}"], "path": ["shipment-containers", "{{shipmentContainerId}}", "cargo"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Cargo created (201)', () => pm.response.to.have.status(201));"] } }],
+          "response": []
+        },
+        {
+          "name": "List cargo of shipment-container",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/shipment-containers/{{shipmentContainerId}}/cargo", "host": ["{{baseUrl}}"], "path": ["shipment-containers", "{{shipmentContainerId}}", "cargo"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Depart shipment (Planned->InTransit)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/shipments/{{shipmentId}}/depart", "host": ["{{baseUrl}}"], "path": ["shipments", "{{shipmentId}}", "depart"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Depart OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is InTransit', () => pm.expect(pm.response.json().status).to.eql('InTransit'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Yard Visits",
+      "item": [
+        {
+          "name": "Create yard visit (PLANNED)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"shipmentContainerId\": \"{{shipmentContainerId}}\",\n  \"eta\": \"2026-09-20T00:00:00Z\",\n  \"etd\": \"2026-09-28T00:00:00Z\"\n}" },
+            "url": { "raw": "{{baseUrl}}/yard-visits", "host": ["{{baseUrl}}"], "path": ["yard-visits"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Created (201)', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status starts PLANNED', () => pm.expect(json.status).to.eql('PLANNED'));",
+                  "pm.collectionVariables.set('yardVisitId', json.yardVisitId);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List yard visits",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/yard-visits", "host": ["{{baseUrl}}"], "path": ["yard-visits"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Get yard visit by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Get OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Gate-in (PLANNED->ARRIVED)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}/gate-in", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}", "gate-in"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Gate-in OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is ARRIVED', () => pm.expect(pm.response.json().status).to.eql('ARRIVED'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Inspection Gate-in Pass (ARRIVED->IN_YARD)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"inspectionType\": \"GateIn\",\n  \"sealCheck\": true,\n  \"result\": \"Pass\"\n}" },
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}/inspections", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}", "inspections"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Inspection created (201)', () => pm.response.to.have.status(201));"] } }],
+          "response": []
+        },
+        {
+          "name": "Yard visit is now IN_YARD",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is IN_YARD', () => pm.expect(pm.response.json().status).to.eql('IN_YARD'));"] } }],
+          "response": []
+        },
+        {
+          "name": "Relocate movement (requires IN_YARD)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"yardVisitId\": \"{{yardVisitId}}\",\n  \"reason\": \"Automated test relocation\"\n}" },
+            "url": { "raw": "{{baseUrl}}/movements/relocate", "host": ["{{baseUrl}}"], "path": ["movements", "relocate"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Relocate OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('movementType is Relocation', () => pm.expect(pm.response.json().movementType).to.eql('Relocation'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create Customs Hold event (Open)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"yardVisitId\": \"{{yardVisitId}}\",\n  \"eventType\": \"CustomsHold\",\n  \"description\": \"Automated test customs hold\"\n}" },
+            "url": { "raw": "{{baseUrl}}/events", "host": ["{{baseUrl}}"], "path": ["events"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Event created (201)', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('resolutionStatus is Open', () => pm.expect(json.resolutionStatus).to.eql('Open'));",
+                  "pm.collectionVariables.set('eventId', json.eventId);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Stage BLOCKED by open Customs Hold (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}/stage", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}", "stage"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Blocked by guard (409)', () => pm.response.to.have.status(409));"] } }],
+          "response": []
+        },
+        {
+          "name": "Resolve Customs Hold event",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"resolutionNote\": \"Cleared by customs\"\n}" },
+            "url": { "raw": "{{baseUrl}}/events/{{eventId}}/resolve", "host": ["{{baseUrl}}"], "path": ["events", "{{eventId}}", "resolve"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Resolve OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('resolutionStatus is Resolved', () => pm.expect(pm.response.json().resolutionStatus).to.eql('Resolved'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Stage (IN_YARD->STAGING, now unblocked)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}/stage", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}", "stage"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Stage OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is STAGING', () => pm.expect(pm.response.json().status).to.eql('STAGING'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Inspection Gate-out Pass (required before gate-out)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"inspectionType\": \"GateOut\",\n  \"sealCheck\": true,\n  \"result\": \"Pass\"\n}" },
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}/inspections", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}", "inspections"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Inspection created (201)', () => pm.response.to.have.status(201));"] } }],
+          "response": []
+        },
+        {
+          "name": "List inspections of yard visit",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}/inspections", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}", "inspections"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200) with 2 inspections', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().length).to.eql(2); });"] } }],
+          "response": []
+        },
+        {
+          "name": "Gate-out (STAGING->DEPARTED)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}/gate-out", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}", "gate-out"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Gate-out OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is DEPARTED', () => pm.expect(pm.response.json().status).to.eql('DEPARTED'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Close (DEPARTED->CLOSED)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}/close", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}", "close"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Close OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is CLOSED', () => pm.expect(pm.response.json().status).to.eql('CLOSED'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Shipment is now Completed (only container, all closed)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/shipments/{{shipmentId}}", "host": ["{{baseUrl}}"], "path": ["shipments", "{{shipmentId}}"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Shipment status is Completed', () => pm.expect(pm.response.json().status).to.eql('Completed'));"] } }],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Movements",
+      "item": [
+        {
+          "name": "List movements of yard visit",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/movements?yard_visit_id={{yardVisitId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["movements"],
+              "query": [{ "key": "yard_visit_id", "value": "{{yardVisitId}}" }]
+            }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200) has Gate-in/Relocation/Rehandle/Gate-out', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().length).to.be.at.least(4); });"] } }],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Invoices",
+      "item": [
+        {
+          "name": "Create invoice StorageFee (auto-calc)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"contractId\": \"{{contractId}}\",\n  \"yardVisitId\": \"{{yardVisitId}}\",\n  \"invoiceType\": \"StorageFee\"\n}" },
+            "url": { "raw": "{{baseUrl}}/invoices", "host": ["{{baseUrl}}"], "path": ["invoices"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invoice created (201)', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('paymentStatus starts Unpaid', () => pm.expect(json.paymentStatus).to.eql('Unpaid'));",
+                  "pm.collectionVariables.set('invoiceId', json.invoiceId);",
+                  "pm.collectionVariables.set('invoiceTotalAmount', json.totalAmount);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List invoices",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/invoices", "host": ["{{baseUrl}}"], "path": ["invoices"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Get invoice by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/invoices/{{invoiceId}}", "host": ["{{baseUrl}}"], "path": ["invoices", "{{invoiceId}}"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Get OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Pay invoice in full (Unpaid->Paid)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"amountPaid\": {{invoiceTotalAmount}},\n  \"paymentMethod\": \"BankTransfer\",\n  \"paymentDate\": \"2026-09-27T00:00:00Z\",\n  \"note\": \"Automated full payment\"\n}" },
+            "url": { "raw": "{{baseUrl}}/invoices/{{invoiceId}}/payments", "host": ["{{baseUrl}}"], "path": ["invoices", "{{invoiceId}}", "payments"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Payment created (201)', () => pm.response.to.have.status(201));"] } }],
+          "response": []
+        },
+        {
+          "name": "Invoice is now Paid",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/invoices/{{invoiceId}}", "host": ["{{baseUrl}}"], "path": ["invoices", "{{invoiceId}}"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('paymentStatus is Paid', () => pm.expect(pm.response.json().paymentStatus).to.eql('Paid'));"] } }],
+          "response": []
+        },
+        {
+          "name": "Overpay rejected (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"amountPaid\": 1,\n  \"paymentMethod\": \"Cash\",\n  \"paymentDate\": \"2026-09-27T00:00:00Z\"\n}" },
+            "url": { "raw": "{{baseUrl}}/invoices/{{invoiceId}}/payments", "host": ["{{baseUrl}}"], "path": ["invoices", "{{invoiceId}}", "payments"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Rejected, already Paid in full (400)', () => pm.response.to.have.status(400));"] } }],
+          "response": []
+        },
+        {
+          "name": "List payments of invoice",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/invoices/{{invoiceId}}/payments", "host": ["{{baseUrl}}"], "path": ["invoices", "{{invoiceId}}", "payments"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Overdue containers",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/reports/overdue-containers", "host": ["{{baseUrl}}"], "path": ["reports", "overdue-containers"] }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Yard visit schedule",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/yard-visit-schedule?from=2026-01-01T00:00:00Z&to=2026-12-31T00:00:00Z",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "yard-visit-schedule"],
+              "query": [{ "key": "from", "value": "2026-01-01T00:00:00Z" }, { "key": "to", "value": "2026-12-31T00:00:00Z" }]
+            }
+          },
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('OK (200)', () => pm.response.to.have.status(200));"] } }],
+          "response": []
+        },
+        {
+          "name": "Revenue by contract",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/reports/revenue?contract_id={{contractId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["reports", "revenue"],
+              "query": [{ "key": "contract_id", "value": "{{contractId}}" }]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('OK (200)', () => pm.response.to.have.status(200));",
+                  "pm.test('totalPaid equals invoiceTotalAmount (fully paid)', () => {",
+                  "  const json = pm.response.json();",
+                  "  pm.expect(json.totalPaid).to.eql(Number(pm.collectionVariables.get('invoiceTotalAmount')));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Cleanup",
+      "item": [
         {
           "name": "Terminate contract",
           "request": {
@@ -412,12 +1148,7 @@
             }
           ],
           "response": []
-        }
-      ]
-    },
-    {
-      "name": "Cleanup",
-      "item": [
+        },
         {
           "name": "Logout",
           "request": {
