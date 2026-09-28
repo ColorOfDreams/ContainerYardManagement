@@ -9,11 +9,10 @@ networks:
 
 volumes:
   postgres-data:
-  rabbitmq-data:
 
 services:
   # ---------------------------------------------------------------
-  # PostgreSQL — 1 instance dùng chung, 2 schema riêng (management/optimize)
+  # PostgreSQL — 1 instance, schema "management"
   # ---------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
@@ -38,7 +37,7 @@ services:
     networks: [cyms-net]
 
   # ---------------------------------------------------------------
-  # Redis — cache slot trống, tra cứu container tần suất cao
+  # Redis — cache danh mục/báo cáo truy vấn nhiều
   # ---------------------------------------------------------------
   redis:
     image: redis:7-alpine
@@ -51,30 +50,6 @@ services:
       timeout: 5s
       retries: 10
     networks: [cyms-net]
-    profiles: [full]
-
-  # ---------------------------------------------------------------
-  # RabbitMQ — Message Broker giao tiếp bất đồng bộ giữa 2 service
-  # (bản có sẵn UI quản lý tại cổng 15672)
-  # ---------------------------------------------------------------
-  rabbitmq:
-    image: rabbitmq:3.13-management-alpine
-    restart: unless-stopped
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
-    ports:
-      - "${RABBITMQ_PORT}:5672"
-      - "${RABBITMQ_MANAGEMENT_UI_PORT}:15672"
-    volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-    networks: [cyms-net]
-    profiles: [full]
 
   # ---------------------------------------------------------------
   # Management Service — CRUD nghiệp vụ chính
@@ -96,30 +71,6 @@ services:
       - "${MANAGEMENT_SERVICE_PORT}:3001"
     depends_on:
       postgres:
-        condition: service_healthy
-    init: true
-    networks: [cyms-net]
-
-  # ---------------------------------------------------------------
-  # Yard Optimize Service — Slot Allocation & Re-plan
-  # ---------------------------------------------------------------
-  optimize-service:
-    build:
-      context: ./app/backend/Optimize
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    profiles: [full]
-    environment:
-      NODE_ENV: production
-      PORT: 3002
-      DATABASE_URL: ${OPTIMIZE_DATABASE_URL}
-      RABBITMQ_URL: amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
-    ports:
-      - "${OPTIMIZE_SERVICE_PORT}:3002"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
         condition: service_healthy
     init: true
     networks: [cyms-net]

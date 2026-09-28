@@ -1,43 +1,28 @@
 # Container Yard Management System
 
-Hệ thống quản lý kho bãi container: quản lý vòng đời container từ Hợp đồng, Shipment, Gate-in, gán vị trí lưu bãi (Slot Allocation), di chuyển nội bộ, Gate-out, đến Invoice/Payment.
+Hệ thống quản lý kho bãi container logistics: quản lý Warehouse, Container, Vehicle, Hợp đồng, Shipment, Gate-in/Gate-out, di chuyển nội bộ, đến Invoice/Payment.
 
 ## Kiến trúc
 
-Backend gồm 2 service tách biệt hoàn toàn dữ liệu, giao tiếp bất đồng bộ qua Message Broker:
+Backend là 1 service duy nhất (Management Service), 1 database Postgres:
 
-- **Management Service** — CRUD nghiệp vụ: Contract, Shipment, Container, Yard Visit, Inspection, Movement, Event, Invoice, Payment.
-- **Yard Optimize Service** — Slot Allocation & re-plan khi có Event; sở hữu dữ liệu Slot (sơ đồ bãi) và thuật toán tối ưu vị trí.
+- **Management Service** — CRUD nghiệp vụ: Warehouse, Contract, Shipment, Vehicle, Container, Yard Visit, Inspection, Movement, Event, Invoice, Payment.
 
 ```mermaid
 flowchart TD
-    Client["Client (Web / Mobile)"] -->|HTTPS| Gateway["API Gateway<br/>JWT/OAuth2 · Rate limit · CORS"]
-    Gateway -->|REST| Mgmt["Management Service"]
-    Gateway -->|REST| Opt["Yard Optimize Service"]
-
-    Mgmt -->|read/write| MgmtDB[("Management DB")]
+    Client["Client (Web / Mobile)"] -->|HTTPS| Mgmt["Management Service<br/>JWT/OAuth2 · Rate limit · CORS"]
+    Mgmt -->|read/write| MgmtDB[("Postgres — management schema")]
     Mgmt -->|cache| Redis[("Redis")]
-    Opt -->|read/write| OptDB[("Optimize DB<br/>(Slot)")]
-
-    Mgmt <-->|publish/consume| Broker[("Message Broker<br/>RabbitMQ / Kafka")]
-    Opt <-->|publish/consume| Broker
 ```
 
-Chi tiết luồng event (publish/consume qua Broker):
-
-| Chiều | Event |
-|---|---|
-| Management → Broker → Optimize | `ContainerReadyForAllocation`, `ReplanRequested`, `ContainerDeparted` |
-| Optimize → Broker → Management | `SlotAllocated`, `RelocationProposed` |
+> Ghi chú: bản thiết kế trước đây có tách riêng 1 "Yard Optimize Service" để tối ưu vị trí lưu bãi (Slot Allocation) qua Message Broker. Phần này đã được **gộp lại vào Management** ở mức đơn giản (chỉ lưu vị trí, không có thuật toán tối ưu) để phù hợp phạm vi đồ án — xem `docs/` để biết chi tiết đã lược bỏ những gì.
 
 ## Tech stack
 
-- Backend: 2 service độc lập (Management Service, Yard Optimize Service) — mỗi service 1 database riêng
-- API Gateway: xác thực JWT/OAuth2, rate limit, CORS, định tuyến
-- Message Broker: RabbitMQ / Kafka (giao tiếp bất đồng bộ giữa 2 service)
-- Cache: Redis
+- Backend: NestJS (1 service), Postgres (1 database, schema `management`)
+- Xác thực: JWT, RBAC (role/permission lưu trong DB)
+- Cache: Redis (cho danh mục/báo cáo truy vấn nhiều)
 - Containerization: Docker / Docker Compose
-- CI/CD: tự động build, test, deploy khi có thay đổi code
 - API docs: Swagger / OpenAPI
 
 ## Cấu trúc thư mục
@@ -46,11 +31,10 @@ Chi tiết luồng event (publish/consume qua Broker):
 .
 ├── app/
 │   ├── backend/
-│   │   ├── Management/   # Management Service (NestJS + Prisma) — Auth/RBAC, Contract...
-│   │   └── Optimize/     # Yard Optimize Service (NestJS + Prisma) — skeleton, chưa triển khai
+│   │   └── Management/   # Management Service (NestJS + pg) — Auth/RBAC, Contract, Warehouse, Vehicle...
 │   └── frontend/
 │       └── Managemnet/   # chưa triển khai
-├── db/init/               # script tạo schema Postgres (management, optimize)
+├── db/init/               # script SQL tạo schema Postgres (management)
 ├── docs/                  # tài liệu nội bộ (SRS, ERD, HLD, API spec...), không push công khai
 ├── postman/               # collection/environment Postman để test API
 ├── tests/
@@ -67,16 +51,10 @@ Chi tiết luồng event (publish/consume qua Broker):
    cp .env.example .env
    ```
 
-2. Chạy hạ tầng. Mặc định chỉ chạy PostgreSQL và Management Service — đủ cho giai đoạn CRUD/Auth hiện tại:
+2. Chạy hạ tầng (Postgres + Redis + Management Service):
 
    ```bash
    docker compose up -d --build
-   ```
-
-   Khi bắt đầu tích hợp Redis, RabbitMQ và Yard Optimize Service (Slot Allocation), chạy toàn bộ hạ tầng bằng:
-
-   ```bash
-   docker compose --profile full up -d --build
    ```
 
 3. Lần chạy đầu tiên (hoặc sau khi thêm migration mới) cần apply schema Prisma và tạo tài khoản Admin đầu tiên — xem `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` trong `.env`:
@@ -112,8 +90,6 @@ Chi tiết luồng event (publish/consume qua Broker):
 | [http://localhost:3001/health](http://localhost:3001/health) | Health check — service (và kết nối DB) đã sẵn sàng hay chưa; dùng cho Docker healthcheck/CI. |
 | [http://localhost:3001/docs](http://localhost:3001/docs) | **Swagger UI** — giao diện xem và thử trực tiếp toàn bộ API (request/response mẫu, thử nhanh không cần Postman). Endpoint cần JWT thì bấm nút "Authorize" và dán access token lấy từ `POST /auth/login`. |
 | [http://localhost:3001/docs-json](http://localhost:3001/docs-json) | **OpenAPI spec (JSON)** tự sinh từ code — dùng để import vào Postman (Import → Link), hoặc các công cụ sinh client/API doc khác. Luôn khớp 1-1 với API thật vì lấy trực tiếp từ decorator trong code, không cần đồng bộ tay. |
-
-Yard Optimize Service (`OPTIMIZE_SERVICE_PORT`, mặc định `3002`) hiện chỉ có `GET /health` — các endpoint Slot Allocation chưa triển khai.
 
 ### Test tự động bằng Postman
 

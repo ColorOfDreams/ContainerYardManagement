@@ -1,12 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { PermissionsService } from './permissions.service';
+import { DatabaseService } from '../database/database.service';
 
 describe('PermissionsService', () => {
   let service: PermissionsService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PermissionsService],
+      providers: [
+        PermissionsService,
+        { provide: DatabaseService, useValue: { query: async () => ({ rows: [] }), transaction: async () => undefined } },
+      ],
     }).compile();
 
     service = module.get<PermissionsService>(PermissionsService);

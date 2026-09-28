@@ -2,16 +2,13 @@ openapi: 3.0.3
 info:
   title: Container Yard Management System API
   description: >
-    API cho Hệ thống Quản lý Kho bãi Container — gồm 2 service tách biệt dữ liệu,
-    hợp nhất tài liệu tại API Gateway (Swagger tổng hợp, xem README.md và
-    SRS_HLD_Kho_bai_Container_v3.drawio):
-      - Management Service (tag: management-*) — CRUD nghiệp vụ: Contract, Container,
-        Shipment, YardVisit, Inspection, Movement, Event, Invoice, Payment.
-      - Yard Optimize Service (tag: optimize-*) — Slot Allocation & Relocation.
+    API cho Hệ thống Quản lý Kho bãi Container — 1 service duy nhất (Management
+    Service, tag: management-*) — CRUD nghiệp vụ: Warehouse, Contract, Container,
+    Vehicle, Shipment, YardVisit, Inspection, Movement, Event, Invoice, Payment.
     Toàn bộ transition trạng thái tham chiếu tài liệu State_Business_Kho_bai_Container_v1.docx
     (nguồn duy nhất/source of truth cho state machine). Data model đầy đủ tham chiếu
     SRS_Quan_ly_kho_bai_container_v5.docx mục 4.
-  version: "1.0.0"
+  version: "2.0.0"
 servers:
   - url: /api
     description: Qua API Gateway (JWT/OAuth2, rate limit, CORS, định tuyến)
@@ -19,10 +16,14 @@ servers:
 tags:
   - name: auth
     description: Xác thực & phân quyền (JWT + refresh, OAuth2, reset password)
+  - name: management-warehouse
+    description: Quản lý Kho (Warehouse) — master data, dùng cho gán vị trí lưu trữ
   - name: management-contract
     description: "FR-01 — Quản lý Hợp đồng"
   - name: management-container
     description: "FR-02 — Quản lý Container"
+  - name: management-vehicle
+    description: Quản lý Phương tiện vận tải (Vehicle)
   - name: management-shipment
     description: "FR-03 — Shipment, Shipment_Container, Cargo"
   - name: management-yard-visit
@@ -37,10 +38,6 @@ tags:
     description: "FR-10 — Invoice & Payment"
   - name: management-report
     description: "FR-11 — Tra cứu & Báo cáo"
-  - name: optimize-slot
-    description: Quản lý Slot (Yard Position)
-  - name: optimize-allocation
-    description: "FR-06, FR-07 — Slot Allocation & Relocation (thuật toán scoring)"
   - name: health
     description: Health check
 
@@ -157,6 +154,92 @@ paths:
       responses:
         '204': { description: Đặt lại mật khẩu thành công }
         '400': { $ref: '#/components/responses/BadRequest' }
+
+  # ============================================================
+  # QUẢN LÝ KHO (WAREHOUSE) — master data, Contract/YardVisit/Movement tham chiếu tới
+  # ============================================================
+  /warehouses:
+    get:
+      tags: [management-warehouse]
+      summary: Danh sách Warehouse (search/filter/sort/pagination)
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/WarehouseListResponse' }
+    post:
+      tags: [management-warehouse]
+      summary: Tạo Warehouse mới
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WarehouseCreate' }
+      responses:
+        '201':
+          description: Đã tạo
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Warehouse' }
+
+  /warehouses/{warehouseId}:
+    parameters:
+      - name: warehouseId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [management-warehouse]
+      summary: Chi tiết Warehouse
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Warehouse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [management-warehouse]
+      summary: Sửa thông tin Warehouse (tên, địa chỉ, capacity)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/WarehouseUpdate' }
+      responses:
+        '200':
+          description: Đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Warehouse' }
+
+  /warehouses/{warehouseId}/occupancy:
+    get:
+      tags: [management-warehouse]
+      summary: "Dung lượng hiện tại của 1 Warehouse (FR-11.2) — số Yard Visit đang IN_YARD/STAGING so với capacity"
+      parameters:
+        - name: warehouseId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  warehouse_id: { type: string, format: uuid }
+                  capacity: { type: integer }
+                  occupied: { type: integer }
+                  occupancy_rate: { type: number, format: float }
 
   # ============================================================
   # FR-01 — CONTRACT
@@ -448,6 +531,110 @@ paths:
               schema: { $ref: '#/components/schemas/Container' }
 
   # ============================================================
+  # QUẢN LÝ PHƯƠNG TIỆN VẬN TẢI (VEHICLE)
+  # ============================================================
+  /vehicles:
+    get:
+      tags: [management-vehicle]
+      summary: Danh sách Vehicle (search/filter/sort/pagination)
+      parameters:
+        - $ref: '#/components/parameters/Search'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Sort'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/VehicleStatus' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/VehicleListResponse' }
+    post:
+      tags: [management-vehicle]
+      summary: "Tạo Vehicle (plate_number duy nhất)"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VehicleCreate' }
+      responses:
+        '201':
+          description: Đã tạo (status mặc định AVAILABLE)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '409':
+          description: Trùng plate_number
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /vehicles/{vehicleId}:
+    parameters:
+      - name: vehicleId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [management-vehicle]
+      summary: Chi tiết Vehicle
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [management-vehicle]
+      summary: Sửa thông tin Vehicle (loại xe, tải trọng)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/VehicleUpdate' }
+      responses:
+        '200':
+          description: Đã cập nhật
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+
+  /vehicles/{vehicleId}/maintenance:
+    post:
+      tags: [management-vehicle]
+      summary: "AVAILABLE/IN_USE → MAINTENANCE (bảo trì hoặc sự cố giữa chuyến — State Business mục 4.4)"
+      parameters:
+        - name: vehicleId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Vehicle đã MAINTENANCE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+
+  /vehicles/{vehicleId}/available:
+    post:
+      tags: [management-vehicle]
+      summary: "MAINTENANCE → AVAILABLE (bảo trì hoàn thành)"
+      parameters:
+        - name: vehicleId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Vehicle đã AVAILABLE
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Vehicle' }
+
+  # ============================================================
   # FR-03 — SHIPMENT / SHIPMENT_CONTAINER / CARGO
   # ============================================================
   /shipments:
@@ -678,8 +865,8 @@ paths:
       tags: [management-yard-visit]
       summary: >
         PLANNED → CANCELLED. Sự cố vận chuyển trước khi đến bãi (Case 2, State Business
-        mục 3.2). Side-effect: giải phóng Slot Reserved liên quan (nếu có) về Empty
-        qua Yard Optimize Service.
+        mục 3.2). Không có side-effect gì với Warehouse — kho chỉ được gán lúc Gate-in
+        thật sự (FR-06), nên chưa có gì cần giải phóng ở bước này.
       parameters:
         - $ref: '#/components/parameters/YardVisitId'
       requestBody:
@@ -729,8 +916,8 @@ paths:
       tags: [management-yard-visit]
       summary: >
         IN_YARD → STAGING (Outbound Staging/Rehandle, FR-08 — BẮT BUỘC, không cho phép
-        IN_YARD → DEPARTED trực tiếp). Tạo Movement type=Rehandle, gọi
-        Yard Optimize Service để chọn slot gần cổng.
+        IN_YARD → DEPARTED trực tiếp). Tạo Movement type=Rehandle; current_warehouse_id
+        không đổi (vẫn cùng kho, chỉ chuẩn bị nội bộ để xuất).
       parameters:
         - $ref: '#/components/parameters/YardVisitId'
       responses:
@@ -749,8 +936,9 @@ paths:
     post:
       tags: [management-yard-visit]
       summary: >
-        STAGING → DEPARTED, ghi nhận atd, tạo Movement type=Gate-out (to_slot_id=null),
-        giải phóng Slot (FR-09.2). Yêu cầu đã có Inspection type=Gate-out.
+        STAGING → DEPARTED, ghi nhận atd, tạo Movement type=Gate-out
+        (to_warehouse_id=null); current_warehouse_id của YardVisit set về null (FR-09.2).
+        Yêu cầu đã có Inspection type=Gate-out.
       parameters:
         - $ref: '#/components/parameters/YardVisitId'
       requestBody:
@@ -821,17 +1009,20 @@ paths:
               schema: { $ref: '#/components/schemas/Inspection' }
 
   # ============================================================
-  # FR-06, FR-07, FR-08, FR-09 — MOVEMENT (đọc từ Management DB, ghi phối hợp Optimize Service)
+  # FR-06, FR-07, FR-08, FR-09 — MOVEMENT
   # ============================================================
   /movements:
     get:
       tags: [management-movement]
-      summary: Lịch sử Movement (theo yard_visit_id hoặc slot_id)
+      summary: Lịch sử Movement (theo yard_visit_id, warehouse_id hoặc vehicle_id)
       parameters:
         - name: yard_visit_id
           in: query
           schema: { type: string, format: uuid }
-        - name: slot_id
+        - name: warehouse_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: vehicle_id
           in: query
           schema: { type: string, format: uuid }
         - $ref: '#/components/parameters/Page'
@@ -850,27 +1041,27 @@ paths:
       tags: [management-movement]
       summary: >
         Tạo Movement type=Relocation thủ công (FR-07.2) — Yard Visit đang IN_YARD.
-        Gọi nội bộ tới POST /optimize/slot-allocation/relocate (Yard Optimize Service)
-        để tính slot mới, tính cả disruption cost tới các slot lân cận (State Business
-        Case 3, mục 3.3).
+        Chọn 1 Warehouse mới còn dung lượng trống, không dùng thuật toán tối ưu vị trí
+        (đã đơn giản hóa so với bản thiết kế trước — xem State Business mục 3.3).
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [yard_visit_id, reason]
+              required: [yard_visit_id, to_warehouse_id, reason]
               properties:
                 yard_visit_id: { type: string, format: uuid }
+                to_warehouse_id: { type: string, format: uuid }
                 reason: { type: string }
       responses:
         '201':
-          description: Movement Relocation đã tạo, slot mới đã Occupied
+          description: Movement Relocation đã tạo, current_warehouse_id đã cập nhật
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Movement' }
         '409':
-          description: Slot đích đã bị chiếm — từ chối, chọn lại
+          description: Warehouse đích đã hết dung lượng trống — từ chối, chọn kho khác
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -1060,10 +1251,10 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/YardVisit' }
 
-  /reports/slot-occupancy:
+  /reports/warehouse-occupancy:
     get:
       tags: [management-report]
-      summary: "Dashboard tỷ lệ lấp đầy Slot theo block (FR-11.2)"
+      summary: "Dashboard tỷ lệ lấp đầy từng Warehouse (FR-11.2) — số Yard Visit đang lưu / capacity"
       responses:
         '200':
           description: OK
@@ -1074,11 +1265,10 @@ paths:
                 items:
                   type: object
                   properties:
-                    block: { type: string }
-                    total_slots: { type: integer }
+                    warehouse_id: { type: string, format: uuid }
+                    name: { type: string }
+                    capacity: { type: integer }
                     occupied: { type: integer }
-                    reserved: { type: integer }
-                    blocked: { type: integer }
                     occupancy_rate: { type: number, format: float }
 
   /reports/overdue-containers:
@@ -1150,235 +1340,8 @@ paths:
                         total_receivable: { type: number }
 
   # ============================================================
-  # YARD OPTIMIZE SERVICE — SLOT
-  # ============================================================
-  /optimize/slots:
-    get:
-      tags: [optimize-slot]
-      summary: Danh sách Slot (search/filter/sort/pagination)
-      parameters:
-        - $ref: '#/components/parameters/Search'
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Sort'
-        - name: status
-          in: query
-          schema: { $ref: '#/components/schemas/SlotStatus' }
-        - name: block
-          in: query
-          schema: { type: string }
-        - name: compatible_type
-          in: query
-          schema: { type: string }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SlotListResponse' }
-    post:
-      tags: [optimize-slot]
-      summary: Khai báo Slot mới (thiết lập sơ đồ bãi)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/SlotCreate' }
-      responses:
-        '201':
-          description: Đã tạo (status mặc định Empty)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Slot' }
-
-  /optimize/slots/{slotId}:
-    parameters:
-      - name: slotId
-        in: path
-        required: true
-        schema: { type: string, format: uuid }
-    get:
-      tags: [optimize-slot]
-      summary: Chi tiết Slot
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Slot' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    patch:
-      tags: [optimize-slot]
-      summary: Sửa thông tin Slot (compatible_type, has_power_supply...)
-      requestBody:
-        content:
-          application/json:
-            schema: { $ref: '#/components/schemas/SlotUpdate' }
-      responses:
-        '200':
-          description: Đã cập nhật
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Slot' }
-
-  /optimize/slots/{slotId}/block:
-    post:
-      tags: [optimize-slot]
-      summary: "Empty/Reserved → Blocked (sự cố hạ tầng tại vị trí)"
-      parameters:
-        - name: slotId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                reason: { type: string }
-      responses:
-        '200':
-          description: Slot đã Blocked
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Slot' }
-
-  /optimize/slots/{slotId}/unblock:
-    post:
-      tags: [optimize-slot]
-      summary: "Blocked → Empty (hết sự cố/bảo trì xong)"
-      parameters:
-        - name: slotId
-          in: path
-          required: true
-          schema: { type: string, format: uuid }
-      responses:
-        '200':
-          description: Slot đã Empty
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Slot' }
-
-  # ============================================================
-  # FR-06, FR-07 — SLOT ALLOCATION
-  # ============================================================
-  /optimize/slot-allocation/propose:
-    post:
-      tags: [optimize-allocation]
-      summary: >
-        Đề xuất Slot phù hợp nhất còn Empty (FR-06.1). Tính điểm dựa trên
-        distance_to_gate, compatible_type, mức cân bằng tải. Slot chuyển Empty → Reserved.
-        Phản hồi phải < 2 giây với bãi quy mô hàng nghìn slot (NFR hiệu năng).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [yard_visit_id, container_type, size_type_code]
-              properties:
-                yard_visit_id: { type: string, format: uuid }
-                container_type: { type: string }
-                size_type_code: { type: string }
-                requires_power_supply: { type: boolean }
-      responses:
-        '200':
-          description: Slot được đề xuất (Reserved)
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SlotAllocationResult' }
-        '409':
-          description: Không còn slot phù hợp — cảnh báo quá tải khu vực/loại container
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-
-  /optimize/slot-allocation/confirm:
-    post:
-      tags: [optimize-allocation]
-      summary: >
-        Xác nhận container đã Gate-in vào Slot (FR-06.2/06.3). Nếu còn đúng Slot đã
-        Reserved cho yard_visit_id này → Reserved → Occupied. Nếu không còn Reserved
-        hợp lệ → tính toán tức thời, Empty → Occupied trực tiếp (đường dự phòng).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [yard_visit_id]
-              properties:
-                yard_visit_id: { type: string, format: uuid }
-                slot_id:
-                  type: string
-                  format: uuid
-                  description: Bỏ trống nếu muốn hệ thống tự tính lại (fallback)
-      responses:
-        '200':
-          description: Slot đã Occupied
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SlotAllocationResult' }
-
-  /optimize/slot-allocation/release:
-    post:
-      tags: [optimize-allocation]
-      summary: >
-        Giải phóng Slot: Occupied → Empty (Gate-out) hoặc Reserved → Empty (container
-        không tới được nữa — hủy shipment/tai nạn/reject, Slot vẫn còn tốt — xem State
-        Business mục 4.4).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [slot_id]
-              properties:
-                slot_id: { type: string, format: uuid }
-                reason: { type: string }
-      responses:
-        '200':
-          description: Slot đã Empty
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Slot' }
-
-  /optimize/slot-allocation/relocate:
-    post:
-      tags: [optimize-allocation]
-      summary: >
-        Tính toán lại vị trí cho Relocation (FR-07.2) trên phạm vi TOÀN BÃI — cộng
-        thêm disruption cost tới các slot/container lân cận, tránh gián đoạn chuỗi lấy
-        hàng (State Business Case 3, mục 3.3). Dùng chung cho cả Relocation nội bộ và
-        Outbound Staging/Rehandle (FR-08).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [yard_visit_id, from_slot_id, reason]
-              properties:
-                yard_visit_id: { type: string, format: uuid }
-                from_slot_id: { type: string, format: uuid }
-                reason: { type: string }
-                prefer_near_gate:
-                  type: boolean
-                  description: "true khi dùng cho Outbound Staging (FR-08)"
-      responses:
-        '200':
-          description: Slot mới đã Occupied, Slot cũ đã Empty
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/SlotAllocationResult' }
-        '409':
-          description: Slot đích đã bị chiếm — từ chối, chọn lại
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Error' }
-
+  # (Đã bỏ: Yard Optimize Service — Slot/Slot Allocation. Vị trí lưu trữ giờ theo dõi
+  #  ở mức Warehouse, xem block /warehouses phía trên và State Business mục 6.)
   # ============================================================
   # HEALTH
   # ============================================================
@@ -1386,18 +1349,6 @@ paths:
     get:
       tags: [health]
       summary: Health check Management Service (và kết nối DB/Redis/Queue)
-      security: []
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/HealthStatus' }
-
-  /optimize/health:
-    get:
-      tags: [health]
-      summary: Health check Yard Optimize Service (và kết nối DB/Broker)
       security: []
       responses:
         '200':
@@ -1511,6 +1462,42 @@ components:
         refresh_token: { type: string }
         expires_in: { type: integer }
 
+    # ---------- Warehouse ----------
+    Warehouse:
+      type: object
+      properties:
+        warehouse_id: { type: string, format: uuid }
+        name: { type: string }
+        address: { type: string }
+        capacity:
+          type: integer
+          description: Sức chứa tối đa (số Yard Visit đồng thời) — dùng cho báo cáo dung lượng kho
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    WarehouseCreate:
+      type: object
+      required: [name, capacity]
+      properties:
+        name: { type: string }
+        address: { type: string }
+        capacity: { type: integer }
+
+    WarehouseUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        address: { type: string }
+        capacity: { type: integer }
+
+    WarehouseListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Warehouse' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
     # ---------- Contract (FR-01) ----------
     ContractStatus:
       type: string
@@ -1520,6 +1507,7 @@ components:
       type: object
       properties:
         contract_id: { type: string, format: uuid }
+        warehouse_id: { type: string, format: uuid }
         customer_id: { type: string, format: uuid }
         effective_date: { type: string, format: date }
         expiry_date: { type: string, format: date }
@@ -1535,8 +1523,9 @@ components:
 
     ContractCreate:
       type: object
-      required: [customer_id, effective_date, expiry_date, unit_price, free_time_days, surcharge_rate]
+      required: [warehouse_id, customer_id, effective_date, expiry_date, unit_price, free_time_days, surcharge_rate]
       properties:
+        warehouse_id: { type: string, format: uuid }
         customer_id: { type: string, format: uuid }
         effective_date: { type: string, format: date }
         expiry_date: { type: string, format: date }
@@ -1614,6 +1603,44 @@ components:
         data:
           type: array
           items: { $ref: '#/components/schemas/Container' }
+        meta: { $ref: '#/components/schemas/PaginationMeta' }
+
+    # ---------- Vehicle ----------
+    VehicleStatus:
+      type: string
+      enum: [AVAILABLE, IN_USE, MAINTENANCE]
+
+    Vehicle:
+      type: object
+      properties:
+        vehicle_id: { type: string, format: uuid }
+        plate_number: { type: string }
+        vehicle_type: { type: string }
+        capacity: { type: number }
+        status: { $ref: '#/components/schemas/VehicleStatus' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    VehicleCreate:
+      type: object
+      required: [plate_number, vehicle_type]
+      properties:
+        plate_number: { type: string }
+        vehicle_type: { type: string }
+        capacity: { type: number }
+
+    VehicleUpdate:
+      type: object
+      properties:
+        vehicle_type: { type: string }
+        capacity: { type: number }
+
+    VehicleListResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Vehicle' }
         meta: { $ref: '#/components/schemas/PaginationMeta' }
 
     # ---------- Shipment / Shipment_Container / Cargo (FR-03) ----------
@@ -1734,7 +1761,7 @@ components:
         etd: { type: string, format: date-time }
         ata: { type: string, format: date-time, nullable: true }
         atd: { type: string, format: date-time, nullable: true }
-        current_slot_id: { type: string, format: uuid, nullable: true }
+        current_warehouse_id: { type: string, format: uuid, nullable: true }
         free_time_days_snapshot: { type: integer }
         status: { $ref: '#/components/schemas/YardVisitStatus' }
         created_at: { type: string, format: date-time }
@@ -1807,8 +1834,9 @@ components:
         movement_id: { type: string, format: uuid }
         yard_visit_id: { type: string, format: uuid }
         movement_type: { $ref: '#/components/schemas/MovementType' }
-        from_slot_id: { type: string, format: uuid, nullable: true }
-        to_slot_id: { type: string, format: uuid, nullable: true }
+        from_warehouse_id: { type: string, format: uuid, nullable: true }
+        to_warehouse_id: { type: string, format: uuid, nullable: true }
+        vehicle_id: { type: string, format: uuid, nullable: true }
         reason: { type: string }
         moved_at: { type: string, format: date-time }
         operator_id: { type: string, format: uuid }
@@ -1902,59 +1930,4 @@ components:
         payment_date: { type: string, format: date-time }
         note: { type: string }
 
-    # ---------- Slot (Yard Optimize Service) ----------
-    SlotStatus:
-      type: string
-      enum: [Empty, Reserved, Occupied, Blocked]
-
-    Slot:
-      type: object
-      properties:
-        slot_id: { type: string, format: uuid }
-        block: { type: string }
-        row: { type: string }
-        tier: { type: string }
-        distance_to_gate: { type: number }
-        compatible_type: { type: string }
-        has_power_supply: { type: boolean }
-        status: { $ref: '#/components/schemas/SlotStatus' }
-
-    SlotCreate:
-      type: object
-      required: [block, row, tier, distance_to_gate]
-      properties:
-        block: { type: string }
-        row: { type: string }
-        tier: { type: string }
-        distance_to_gate: { type: number }
-        compatible_type: { type: string }
-        has_power_supply: { type: boolean, default: false }
-
-    SlotUpdate:
-      type: object
-      properties:
-        compatible_type: { type: string }
-        has_power_supply: { type: boolean }
-
-    SlotListResponse:
-      type: object
-      properties:
-        data:
-          type: array
-          items: { $ref: '#/components/schemas/Slot' }
-        meta: { $ref: '#/components/schemas/PaginationMeta' }
-
-    SlotAllocationResult:
-      type: object
-      properties:
-        slot: { $ref: '#/components/schemas/Slot' }
-        score: { type: number, description: Điểm số theo thuật toán scoring FR-06 }
-        score_breakdown:
-          type: object
-          properties:
-            distance_score: { type: number }
-            compatibility_score: { type: number }
-            load_balance_score: { type: number }
-            disruption_cost:
-              type: number
-              description: Chỉ có khi dùng cho Relocation (FR-07, State Business Case 3)
+    # (Đã bỏ: Slot/SlotAllocation schemas — xem Warehouse ở trên)
