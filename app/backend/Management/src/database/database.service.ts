@@ -36,7 +36,7 @@ export class DatabaseService implements OnModuleDestroy {
     try {
         // Bắt đầu thực hiện
       await client.query('BEGIN');
-      // chạy hàm nghiệp vụ trong cline nhiều lần
+      // chạy hàm nghiệp vụ trong client nhiều lần
       const result = await fn(client);
       // Không có lỗi thì commit
       await client.query('COMMIT');
