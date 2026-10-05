@@ -10,8 +10,8 @@ info:
     SRS_Quan_ly_kho_bai_container_v5.docx mục 4.
   version: "2.0.0"
 servers:
-  - url: /api
-    description: Qua API Gateway (JWT/OAuth2, rate limit, CORS, định tuyến)
+  - url: /
+    description: Gọi trực tiếp Management Service — không có API Gateway/reverse proxy đứng giữa (xem README.md)
 
 tags:
   - name: auth
