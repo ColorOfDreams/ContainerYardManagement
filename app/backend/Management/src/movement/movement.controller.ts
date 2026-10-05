@@ -15,8 +15,8 @@ export class MovementController {
 
   @Get()
   @RequirePermissions('movement:read')
-  findAll(@Query('yard_visit_id') yardVisitId?: string, @Query('slot_id') slotId?: string) {
-    return this.movementService.findAll({ yardVisitId, slotId });
+  findAll(@Query('yard_visit_id') yardVisitId?: string, @Query('warehouse_id') warehouseId?: string) {
+    return this.movementService.findAll({ yardVisitId, warehouseId });
   }
 
   @Post('relocate')

@@ -57,17 +57,16 @@ flowchart TD
    docker compose up -d --build
    ```
 
-3. Lần chạy đầu tiên (hoặc sau khi thêm migration mới) cần apply schema Prisma và tạo tài khoản Admin đầu tiên — xem `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` trong `.env`:
+3. Schema (`management.*`) được tự tạo ngay từ lần đầu Postgres khởi động, qua các file SQL trong `db/init/` (không cần chạy migration thủ công). Lần chạy đầu tiên cần tạo tài khoản Admin — xem `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD` trong `.env`:
 
    ```bash
-   docker compose exec management-service npx prisma migrate deploy
-   docker compose exec management-service npm run prisma:seed
+   docker compose exec management-service npm run db:seed
    ```
 
-4. (Tuỳ chọn) Sinh sẵn dữ liệu demo/test — hàng ngàn dòng trải đều mọi bảng (Contract, Container, Shipment, Yard Visit, Inspection, Movement, Event, Invoice, Payment...) và 6 tài khoản theo từng role, để có dữ liệu thật ngay khi mở Swagger/Postman thay vì phải tạo tay:
+4. (Tuỳ chọn) Sinh sẵn dữ liệu demo/test — hàng ngàn dòng trải đều mọi bảng (Warehouse, Vehicle, Contract, Container, Shipment, Yard Visit, Inspection, Movement, Event, Invoice, Payment...) và 6 tài khoản theo từng role, để có dữ liệu thật ngay khi mở Swagger/Postman thay vì phải tạo tay:
 
    ```bash
-   docker compose exec management-service npm run prisma:seed:fake
+   docker compose exec management-service npm run db:seed:fake
    ```
 
    Chạy lại nhiều lần sẽ cộng dồn thêm dữ liệu mới (không xoá dữ liệu cũ). Tài khoản demo dùng chung mật khẩu `Passw0rd1`:

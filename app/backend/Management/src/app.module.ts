@@ -3,6 +3,8 @@ import { ConfigModule } from '@nestjs/config';
 import { HealthController } from './health/health.controller';
 import { DatabaseModule } from './database/database.module';
 import { ContractModule } from './contract/contract.module';
+import { WarehouseModule } from './warehouse/warehouse.module';
+import { VehicleModule } from './vehicle/vehicle.module';
 import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
@@ -28,11 +30,13 @@ import { ReportsModule } from './reports/reports.module';
     }),
     DatabaseModule,
     AuthModule,
+    WarehouseModule,
     ContractModule,
     UsersModule,
     RolesModule,
     PermissionsModule,
     ContainerModule,
+    VehicleModule,
     ShipmentModule,
     YardVisitModule,
     InspectionModule,

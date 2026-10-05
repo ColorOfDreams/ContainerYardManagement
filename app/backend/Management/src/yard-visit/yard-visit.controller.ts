@@ -58,8 +58,12 @@ export class YardVisitController {
 
   @Post(':yardVisitId/gate-out')
   @RequirePermissions('yardvisit:update')
-  gateOut(@Param('yardVisitId') yardVisitId: string, @Body('atd') atd?: string) {
-    return this.yardVisitService.gateOut(yardVisitId, atd);
+  gateOut(
+    @Param('yardVisitId') yardVisitId: string,
+    @Body('atd') atd?: string,
+    @Body('vehicleId') vehicleId?: string,
+  ) {
+    return this.yardVisitService.gateOut(yardVisitId, atd, vehicleId);
   }
 
   @Post(':yardVisitId/close')

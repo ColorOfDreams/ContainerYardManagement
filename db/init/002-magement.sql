@@ -436,6 +436,19 @@ CREATE TABLE "management"."refresh_token" (
     CONSTRAINT "refresh_token_pkey" PRIMARY KEY ("refresh_token_id")
 );
 
+-- CreateTable
+-- [MỚI] Đặt lại mật khẩu (forgot/reset password) — cùng pattern id.secret như refresh_token.
+CREATE TABLE "management"."password_reset_token" (
+    "reset_token_id" UUID NOT NULL DEFAULT gen_random_uuid(),
+    "user_id" UUID NOT NULL,
+    "token_hash" TEXT NOT NULL,
+    "expires_at" TIMESTAMP(3) NOT NULL,
+    "used_at" TIMESTAMP(3),
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "password_reset_token_pkey" PRIMARY KEY ("reset_token_id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "user_email_key" ON "management"."user"("email");
 
@@ -460,6 +473,12 @@ CREATE UNIQUE INDEX "refresh_token_token_hash_key" ON "management"."refresh_toke
 -- CreateIndex
 CREATE INDEX "refresh_token_user_id_expires_at_idx" ON "management"."refresh_token"("user_id", "expires_at");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "password_reset_token_token_hash_key" ON "management"."password_reset_token"("token_hash");
+
+-- CreateIndex
+CREATE INDEX "password_reset_token_user_id_expires_at_idx" ON "management"."password_reset_token"("user_id", "expires_at");
+
 -- AddForeignKey
 ALTER TABLE "management"."user_role" ADD CONSTRAINT "user_role_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "management"."user"("user_id") ON DELETE CASCADE ON UPDATE CASCADE;
 
@@ -474,3 +493,6 @@ ALTER TABLE "management"."role_permission" ADD CONSTRAINT "role_permission_permi
 
 -- AddForeignKey
 ALTER TABLE "management"."refresh_token" ADD CONSTRAINT "refresh_token_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "management"."user"("user_id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "management"."password_reset_token" ADD CONSTRAINT "password_reset_token_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "management"."user"("user_id") ON DELETE CASCADE ON UPDATE CASCADE;

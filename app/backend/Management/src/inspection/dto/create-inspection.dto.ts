@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export enum InspectionTypeDto {
   GateIn = 'GateIn',
@@ -36,4 +36,14 @@ export class CreateInspectionDto {
   failReason?: InspectionFailReasonDto;
 
   @ApiPropertyOptional() @IsOptional() @IsString() damageNotes?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Bắt buộc khi inspectionType=GateIn và result=Pass — chọn Warehouse còn dung lượng trống để gán current_warehouse_id (FR-06)' })
+  @IsOptional()
+  @IsUUID()
+  warehouseId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid', description: 'Phương tiện thực hiện Gate-in (nếu có) — ghi vào Movement.vehicle_id' })
+  @IsOptional()
+  @IsUUID()
+  vehicleId?: string;
 }

@@ -15,12 +15,16 @@
     { "key": "adminPassword", "value": "ReplaceWith6PlusCharsAndANumber" },
     { "key": "accessToken", "value": "" },
     { "key": "refreshToken", "value": "" },
+    { "key": "resetPasswordToken", "value": "" },
     { "key": "permissionCode", "value": "" },
     { "key": "permissionId", "value": "" },
     { "key": "roleCode", "value": "" },
     { "key": "roleId", "value": "" },
     { "key": "testUserEmail", "value": "" },
     { "key": "userId", "value": "" },
+    { "key": "warehouseId", "value": "" },
+    { "key": "warehouseId2", "value": "" },
+    { "key": "vehicleId", "value": "" },
     { "key": "contractId", "value": "" },
     { "key": "containerId", "value": "" },
     { "key": "containerId2", "value": "" },
@@ -121,6 +125,57 @@
             }
           ],
           "response": []
+        },
+        {
+          "name": "Forgot password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"email\": \"{{adminEmail}}\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/forgot-password", "host": ["{{baseUrl}}"], "path": ["auth", "forgot-password"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Forgot password OK (204, luôn 204 dù email có tồn tại hay không)', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Reset password (cần lấy token tay từ log server — xem console `[DEV] Reset password token...`)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"token\": \"{{resetPasswordToken}}\",\n  \"newPassword\": \"NewPassw0rd1\"\n}" },
+            "url": { "raw": "{{baseUrl}}/auth/reset-password", "host": ["{{baseUrl}}"], "path": ["auth", "reset-password"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Request này KHÔNG tự chạy được trong Collection Runner — chưa có email",
+                  "// thật nên token chỉ in ra console server (docker compose logs management-service).",
+                  "// Set biến collection 'resetPasswordToken' = token đọc từ log rồi Send lại thủ công.",
+                  "if (pm.collectionVariables.get('resetPasswordToken')) {",
+                  "  pm.test('Reset password OK (204)', () => pm.response.to.have.status(204));",
+                  "} else {",
+                  "  console.log('Bỏ qua: chưa set resetPasswordToken (xem hướng dẫn trong tên request).');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "response": []
         }
       ]
     },
@@ -150,7 +205,7 @@
                 "exec": [
                   "pm.test('Permission created (201)', () => pm.response.to.have.status(201));",
                   "const json = pm.response.json();",
-                  "pm.collectionVariables.set('permissionId', json.permissionId);"
+                  "pm.collectionVariables.set('permissionId', json.permission_id);"
                 ]
               }
             }
@@ -200,7 +255,7 @@
                 "exec": [
                   "pm.test('Role created (201)', () => pm.response.to.have.status(201));",
                   "const json = pm.response.json();",
-                  "pm.collectionVariables.set('roleId', json.roleId);"
+                  "pm.collectionVariables.set('roleId', json.role_id);"
                 ]
               }
             }
@@ -250,7 +305,7 @@
                 "exec": [
                   "pm.test('User created (201)', () => pm.response.to.have.status(201));",
                   "const json = pm.response.json();",
-                  "pm.collectionVariables.set('userId', json.userId);"
+                  "pm.collectionVariables.set('userId', json.user_id);"
                 ]
               }
             }
@@ -306,6 +361,127 @@
       ]
     },
     {
+      "name": "Warehouses",
+      "item": [
+        {
+          "name": "Create warehouse",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Automated test warehouse\",\n  \"address\": \"Cat Lai, Ho Chi Minh City\",\n  \"capacity\": 100\n}" },
+            "url": { "raw": "{{baseUrl}}/warehouses", "host": ["{{baseUrl}}"], "path": ["warehouses"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Warehouse created (201)', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.collectionVariables.set('warehouseId', json.warehouse_id);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Create warehouse 2 (dùng cho Relocate)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Automated test warehouse 2\",\n  \"address\": \"Cai Mep, Vung Tau\",\n  \"capacity\": 100\n}" },
+            "url": { "raw": "{{baseUrl}}/warehouses", "host": ["{{baseUrl}}"], "path": ["warehouses"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Warehouse 2 created (201)', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('warehouseId2', pm.response.json().warehouse_id);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List warehouses",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/warehouses", "host": ["{{baseUrl}}"], "path": ["warehouses"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200)', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get warehouse by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/warehouses/{{warehouseId}}", "host": ["{{baseUrl}}"], "path": ["warehouses", "{{warehouseId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('Get OK (200)', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Update warehouse",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"capacity\": 150\n}" },
+            "url": { "raw": "{{baseUrl}}/warehouses/{{warehouseId}}", "host": ["{{baseUrl}}"], "path": ["warehouses", "{{warehouseId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('Update OK (200)', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Warehouse occupancy",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/warehouses/{{warehouseId}}/occupancy", "host": ["{{baseUrl}}"], "path": ["warehouses", "{{warehouseId}}", "occupancy"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Occupancy OK (200)', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Has capacity + occupied', () => {",
+                  "  pm.expect(json.capacity).to.be.a('number');",
+                  "  pm.expect(json.occupied).to.be.a('number');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Contracts",
       "item": [
         {
@@ -313,7 +489,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"customerId\": \"{{$guid}}\",\n  \"effectiveDate\": \"2026-01-01\",\n  \"expiryDate\": \"2027-01-01\",\n  \"unitPrice\": 120.5,\n  \"freeTimeDays\": 7,\n  \"surchargeRate\": 0.05,\n  \"paymentTerms\": \"Net 30 (automated test)\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"warehouseId\": \"{{warehouseId}}\",\n  \"customerId\": \"{{$guid}}\",\n  \"effectiveDate\": \"2026-01-01\",\n  \"expiryDate\": \"2027-01-01\",\n  \"unitPrice\": 120.5,\n  \"freeTimeDays\": 7,\n  \"surchargeRate\": 0.05,\n  \"paymentTerms\": \"Net 30 (automated test)\"\n}" },
             "url": { "raw": "{{baseUrl}}/contracts", "host": ["{{baseUrl}}"], "path": ["contracts"] }
           },
           "event": [
@@ -325,7 +501,7 @@
                   "pm.test('Contract created (201)', () => pm.response.to.have.status(201));",
                   "const json = pm.response.json();",
                   "pm.test('Status starts as Draft', () => pm.expect(json.status).to.eql('Draft'));",
-                  "pm.collectionVariables.set('contractId', json.contractId);"
+                  "pm.collectionVariables.set('contractId', json.contract_id);"
                 ]
               }
             }
@@ -421,7 +597,7 @@
                   "pm.test('Container created (201)', () => pm.response.to.have.status(201));",
                   "const json = pm.response.json();",
                   "pm.test('Status starts AVAILABLE', () => pm.expect(json.status).to.eql('AVAILABLE'));",
-                  "pm.collectionVariables.set('containerId', json.containerId);"
+                  "pm.collectionVariables.set('containerId', json.container_id);"
                 ]
               }
             }
@@ -516,7 +692,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Container 2 created (201)', () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set('containerId2', pm.response.json().containerId);"
+                  "pm.collectionVariables.set('containerId2', pm.response.json().container_id);"
                 ]
               }
             }
@@ -557,6 +733,123 @@
       ]
     },
     {
+      "name": "Vehicles",
+      "item": [
+        {
+          "name": "Create vehicle",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"plateNumber\": \"51C-{{$timestamp}}\",\n  \"vehicleType\": \"Xe đầu kéo\",\n  \"capacity\": 20000\n}" },
+            "url": { "raw": "{{baseUrl}}/vehicles", "host": ["{{baseUrl}}"], "path": ["vehicles"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Vehicle created (201)', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('Status starts AVAILABLE', () => pm.expect(json.status).to.eql('AVAILABLE'));",
+                  "pm.collectionVariables.set('vehicleId', json.vehicle_id);"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "List vehicles",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/vehicles", "host": ["{{baseUrl}}"], "path": ["vehicles"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('List OK (200)', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Get vehicle by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/vehicles/{{vehicleId}}", "host": ["{{baseUrl}}"], "path": ["vehicles", "{{vehicleId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('Get OK (200)', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Update vehicle",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"capacity\": 25000\n}" },
+            "url": { "raw": "{{baseUrl}}/vehicles/{{vehicleId}}", "host": ["{{baseUrl}}"], "path": ["vehicles", "{{vehicleId}}"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": { "type": "text/javascript", "exec": ["pm.test('Update OK (200)', () => pm.response.to.have.status(200));"] }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Vehicle maintenance",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/vehicles/{{vehicleId}}/maintenance", "host": ["{{baseUrl}}"], "path": ["vehicles", "{{vehicleId}}", "maintenance"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Maintenance OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is MAINTENANCE', () => pm.expect(pm.response.json().status).to.eql('MAINTENANCE'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "name": "Vehicle available",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/vehicles/{{vehicleId}}/available", "host": ["{{baseUrl}}"], "path": ["vehicles", "{{vehicleId}}", "available"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Available OK (201)', () => pm.response.to.have.status(201));",
+                  "pm.test('Status is AVAILABLE', () => pm.expect(pm.response.json().status).to.eql('AVAILABLE'));"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Shipments",
       "item": [
         {
@@ -576,7 +869,7 @@
                   "pm.test('Shipment created (201)', () => pm.response.to.have.status(201));",
                   "const json = pm.response.json();",
                   "pm.test('Status starts as Planned', () => pm.expect(json.status).to.eql('Planned'));",
-                  "pm.collectionVariables.set('shipmentId', json.shipmentId);"
+                  "pm.collectionVariables.set('shipmentId', json.shipment_id);"
                 ]
               }
             }
@@ -629,7 +922,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Attached (201)', () => pm.response.to.have.status(201));",
-                  "pm.collectionVariables.set('shipmentContainerId', pm.response.json().shipmentContainerId);"
+                  "pm.collectionVariables.set('shipmentContainerId', pm.response.json().shipment_container_id);"
                 ]
               }
             }
@@ -681,7 +974,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Depart OK (201)', () => pm.response.to.have.status(201));",
-                  "pm.test('Status is InTransit', () => pm.expect(pm.response.json().status).to.eql('InTransit'));"
+                  "pm.test('Status is In Transit', () => pm.expect(pm.response.json().status).to.eql('In Transit'));"
                 ]
               }
             }
@@ -710,7 +1003,7 @@
                   "pm.test('Created (201)', () => pm.response.to.have.status(201));",
                   "const json = pm.response.json();",
                   "pm.test('Status starts PLANNED', () => pm.expect(json.status).to.eql('PLANNED'));",
-                  "pm.collectionVariables.set('yardVisitId', json.yardVisitId);"
+                  "pm.collectionVariables.set('yardVisitId', json.yard_visit_id);"
                 ]
               }
             }
@@ -763,7 +1056,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"inspectionType\": \"GateIn\",\n  \"sealCheck\": true,\n  \"result\": \"Pass\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"inspectionType\": \"GateIn\",\n  \"sealCheck\": true,\n  \"result\": \"Pass\",\n  \"warehouseId\": \"{{warehouseId}}\",\n  \"vehicleId\": \"{{vehicleId}}\"\n}" },
             "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}/inspections", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}", "inspections"] }
           },
           "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Inspection created (201)', () => pm.response.to.have.status(201));"] } }],
@@ -776,7 +1069,18 @@
             "header": [],
             "url": { "raw": "{{baseUrl}}/yard-visits/{{yardVisitId}}", "host": ["{{baseUrl}}"], "path": ["yard-visits", "{{yardVisitId}}"] }
           },
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('Status is IN_YARD', () => pm.expect(pm.response.json().status).to.eql('IN_YARD'));"] } }],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is IN_YARD', () => pm.expect(pm.response.json().status).to.eql('IN_YARD'));",
+                  "pm.test('current_warehouse_id is set (FR-06)', () => pm.expect(pm.response.json().current_warehouse_id).to.eql(pm.collectionVariables.get('warehouseId')));"
+                ]
+              }
+            }
+          ],
           "response": []
         },
         {
@@ -784,7 +1088,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"yardVisitId\": \"{{yardVisitId}}\",\n  \"reason\": \"Automated test relocation\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"yardVisitId\": \"{{yardVisitId}}\",\n  \"toWarehouseId\": \"{{warehouseId2}}\",\n  \"reason\": \"Automated test relocation\"\n}" },
             "url": { "raw": "{{baseUrl}}/movements/relocate", "host": ["{{baseUrl}}"], "path": ["movements", "relocate"] }
           },
           "event": [
@@ -794,7 +1098,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Relocate OK (201)', () => pm.response.to.have.status(201));",
-                  "pm.test('movementType is Relocation', () => pm.expect(pm.response.json().movementType).to.eql('Relocation'));"
+                  "pm.test('movement_type is Relocation', () => pm.expect(pm.response.json().movement_type).to.eql('Relocation'));",
+                  "pm.test('to_warehouse_id is warehouse 2', () => pm.expect(pm.response.json().to_warehouse_id).to.eql(pm.collectionVariables.get('warehouseId2')));"
                 ]
               }
             }
@@ -817,8 +1122,8 @@
                 "exec": [
                   "pm.test('Event created (201)', () => pm.response.to.have.status(201));",
                   "const json = pm.response.json();",
-                  "pm.test('resolutionStatus is Open', () => pm.expect(json.resolutionStatus).to.eql('Open'));",
-                  "pm.collectionVariables.set('eventId', json.eventId);"
+                  "pm.test('resolution_status is Open', () => pm.expect(json.resolution_status).to.eql('Open'));",
+                  "pm.collectionVariables.set('eventId', json.event_id);"
                 ]
               }
             }
@@ -850,7 +1155,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Resolve OK (201)', () => pm.response.to.have.status(201));",
-                  "pm.test('resolutionStatus is Resolved', () => pm.expect(pm.response.json().resolutionStatus).to.eql('Resolved'));"
+                  "pm.test('resolution_status is Resolved', () => pm.expect(pm.response.json().resolution_status).to.eql('Resolved'));"
                 ]
               }
             }
@@ -913,7 +1218,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Gate-out OK (201)', () => pm.response.to.have.status(201));",
-                  "pm.test('Status is DEPARTED', () => pm.expect(pm.response.json().status).to.eql('DEPARTED'));"
+                  "pm.test('Status is DEPARTED', () => pm.expect(pm.response.json().status).to.eql('DEPARTED'));",
+                  "pm.test('current_warehouse_id cleared (container đã rời kho)', () => pm.expect(pm.response.json().current_warehouse_id).to.eql(null));"
                 ]
               }
             }
@@ -992,9 +1298,9 @@
                 "exec": [
                   "pm.test('Invoice created (201)', () => pm.response.to.have.status(201));",
                   "const json = pm.response.json();",
-                  "pm.test('paymentStatus starts Unpaid', () => pm.expect(json.paymentStatus).to.eql('Unpaid'));",
-                  "pm.collectionVariables.set('invoiceId', json.invoiceId);",
-                  "pm.collectionVariables.set('invoiceTotalAmount', json.totalAmount);"
+                  "pm.test('payment_status starts Unpaid', () => pm.expect(json.payment_status).to.eql('Unpaid'));",
+                  "pm.collectionVariables.set('invoiceId', json.invoice_id);",
+                  "pm.collectionVariables.set('invoiceTotalAmount', json.total_amount);"
                 ]
               }
             }
@@ -1039,7 +1345,7 @@
             "header": [],
             "url": { "raw": "{{baseUrl}}/invoices/{{invoiceId}}", "host": ["{{baseUrl}}"], "path": ["invoices", "{{invoiceId}}"] }
           },
-          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('paymentStatus is Paid', () => pm.expect(pm.response.json().paymentStatus).to.eql('Paid'));"] } }],
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": ["pm.test('payment_status is Paid', () => pm.expect(pm.response.json().payment_status).to.eql('Paid'));"] } }],
           "response": []
         },
         {

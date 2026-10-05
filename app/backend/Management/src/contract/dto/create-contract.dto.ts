@@ -18,6 +18,10 @@ import { IsDateString, IsNumber, IsOptional, IsString, IsUUID, Min } from 'class
 export class CreateContractDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
+  warehouseId: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
   customerId: string;
 
   @ApiProperty({ format: 'date' })

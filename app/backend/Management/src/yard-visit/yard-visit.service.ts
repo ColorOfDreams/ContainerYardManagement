@@ -1,9 +1,12 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { DatabaseService } from '../database/database.service';
 import { CreateYardVisitDto } from './dto/create-yard-visit.dto';
 import { UpdateYardVisitDto } from './dto/update-yard-visit.dto';
 
 const TERMINAL_STATUSES = ['CLOSED', 'REJECTED', 'CANCELLED'];
+
+const YARD_VISIT_COLUMNS =
+  'yard_visit_id, shipment_container_id, current_warehouse_id, eta, etd, ata, atd, free_time_days_snapshot, status, created_at, updated_at';
 
 // ============================================================
 // YardVisitService — FR-04/05/08/09. State machine đúng theo
@@ -12,39 +15,43 @@ const TERMINAL_STATUSES = ['CLOSED', 'REJECTED', 'CANCELLED'];
 //   PLANNED -> CANCELLED (Case 2, sự cố trước khi tới)
 //   ARRIVED -> REJECTED (Inspection Gate-in Fail — xử lý ở InspectionService)
 //
-// currentSlotId / Movement.fromSlotId|toSlotId luôn null trong toàn bộ
-// service này — Yard Optimize Service (chủ sở hữu dữ liệu Slot) chưa triển
-// khai, đây là giản lược có chủ đích (xem plan).
+// current_warehouse_id / Movement.from_warehouse_id|to_warehouse_id luôn null
+// trong toàn bộ service này — chỉ được set khi Inspection Gate-in Pass
+// (xem InspectionService), đây là đơn giản hóa có chủ đích theo SRS v6/FR-06.
 // ============================================================
 @Injectable()
 export class YardVisitService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly db: DatabaseService) {}
 
   async create(dto: CreateYardVisitDto) {
-    const sc = await this.prisma.shipmentContainer.findUnique({
-      where: { shipmentContainerId: dto.shipmentContainerId },
-      include: { shipment: { include: { contract: true } } },
-    });
-    if (!sc) throw new NotFoundException(`Shipment_Container ${dto.shipmentContainerId} không tồn tại`);
+    const contract = await this.db.query<{ free_time_days: number }>(
+      `SELECT c.free_time_days
+       FROM management.shipment_container sc
+       JOIN management.shipment s ON s.shipment_id = sc.shipment_id
+       JOIN management.contract c ON c.contract_id = s.contract_id
+       WHERE sc.shipment_container_id = $1`,
+      [dto.shipmentContainerId],
+    );
+    if (contract.rows.length === 0) throw new NotFoundException(`Shipment_Container ${dto.shipmentContainerId} không tồn tại`);
 
-    return this.prisma.yardVisit.create({
-      data: {
-        shipmentContainerId: dto.shipmentContainerId,
-        eta: new Date(dto.eta),
-        etd: dto.etd ? new Date(dto.etd) : null,
-        freeTimeDaysSnapshot: sc.shipment.contract.freeTimeDays,
-      },
-    });
+    const result = await this.db.query(
+      `INSERT INTO management.yard_visit (shipment_container_id, eta, etd, free_time_days_snapshot)
+       VALUES ($1, $2, $3, $4)
+       RETURNING ${YARD_VISIT_COLUMNS}`,
+      [dto.shipmentContainerId, dto.eta, dto.etd ?? null, contract.rows[0].free_time_days],
+    );
+    return result.rows[0];
   }
 
-  findAll() {
-    return this.prisma.yardVisit.findMany({ orderBy: { eta: 'desc' } });
+  async findAll() {
+    const result = await this.db.query(`SELECT ${YARD_VISIT_COLUMNS} FROM management.yard_visit ORDER BY eta DESC`);
+    return result.rows;
   }
 
   async findOne(yardVisitId: string) {
-    const visit = await this.prisma.yardVisit.findUnique({ where: { yardVisitId } });
-    if (!visit) throw new NotFoundException(`Yard Visit ${yardVisitId} không tồn tại`);
-    return visit;
+    const result = await this.db.query(`SELECT ${YARD_VISIT_COLUMNS} FROM management.yard_visit WHERE yard_visit_id = $1`, [yardVisitId]);
+    if (result.rows.length === 0) throw new NotFoundException(`Yard Visit ${yardVisitId} không tồn tại`);
+    return result.rows[0];
   }
 
   async update(yardVisitId: string, dto: UpdateYardVisitDto) {
@@ -52,13 +59,14 @@ export class YardVisitService {
     if (TERMINAL_STATUSES.includes(visit.status)) {
       throw new ConflictException(`Yard Visit đã ở trạng thái cuối (${visit.status}) — không đổi lịch được nữa`);
     }
-    return this.prisma.yardVisit.update({
-      where: { yardVisitId },
-      data: {
-        ...(dto.eta !== undefined && { eta: new Date(dto.eta) }),
-        ...(dto.etd !== undefined && { etd: new Date(dto.etd) }),
-      },
-    });
+    const result = await this.db.query(
+      `UPDATE management.yard_visit
+       SET eta = COALESCE($1, eta), etd = COALESCE($2, etd), updated_at = CURRENT_TIMESTAMP
+       WHERE yard_visit_id = $3
+       RETURNING ${YARD_VISIT_COLUMNS}`,
+      [dto.eta ?? null, dto.etd ?? null, yardVisitId],
+    );
+    return result.rows[0];
   }
 
   async cancel(yardVisitId: string, reason: string) {
@@ -67,7 +75,12 @@ export class YardVisitService {
     if (visit.status !== 'PLANNED') {
       throw new ConflictException(`Chỉ Yard Visit đang PLANNED mới CANCELLED được (hiện tại: ${visit.status})`);
     }
-    return this.prisma.yardVisit.update({ where: { yardVisitId }, data: { status: 'CANCELLED' } });
+    const result = await this.db.query(
+      `UPDATE management.yard_visit SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP
+       WHERE yard_visit_id = $1 RETURNING ${YARD_VISIT_COLUMNS}`,
+      [yardVisitId],
+    );
+    return result.rows[0];
   }
 
   async gateIn(yardVisitId: string, ata?: string) {
@@ -75,12 +88,15 @@ export class YardVisitService {
     if (visit.status !== 'PLANNED') {
       throw new ConflictException(`Chỉ Yard Visit đang PLANNED mới Gate-in được (hiện tại: ${visit.status})`);
     }
-    const updated = await this.prisma.yardVisit.update({
-      where: { yardVisitId },
-      data: { status: 'ARRIVED', ata: ata ? new Date(ata) : new Date() },
-    });
+    const result = await this.db.query(
+      `UPDATE management.yard_visit
+       SET status = 'ARRIVED', ata = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE yard_visit_id = $2
+       RETURNING ${YARD_VISIT_COLUMNS}`,
+      [ata ? new Date(ata) : new Date(), yardVisitId],
+    );
     await this.markShipmentArrivedIfFirst(yardVisitId);
-    return updated;
+    return result.rows[0];
   }
 
   async stage(yardVisitId: string) {
@@ -88,37 +104,59 @@ export class YardVisitService {
     if (visit.status !== 'IN_YARD') {
       throw new ConflictException(`Chỉ Yard Visit đang IN_YARD mới Stage được (hiện tại: ${visit.status})`);
     }
-    const openCustomsHold = await this.prisma.yardEvent.findFirst({
-      where: { yardVisitId, eventType: 'CustomsHold', resolutionStatus: 'Open' },
-    });
-    if (openCustomsHold) {
+    const openCustomsHold = await this.db.query(
+      `SELECT 1 FROM management.event WHERE yard_visit_id = $1 AND event_type = 'Customs Hold' AND resolution_status = 'Open' LIMIT 1`,
+      [yardVisitId],
+    );
+    if (openCustomsHold.rows.length > 0) {
       throw new ConflictException('Đang có Event Customs Hold chưa Resolved — không thể chuyển sang Staging (State Business Case 5)');
     }
 
-    const [, updated] = await this.prisma.$transaction([
-      this.prisma.movement.create({ data: { yardVisitId, movementType: 'Rehandle', fromSlotId: null, toSlotId: null } }),
-      this.prisma.yardVisit.update({ where: { yardVisitId }, data: { status: 'STAGING' } }),
-    ]);
-    return updated;
+    return this.db.transaction(async (client) => {
+      await client.query(
+        `INSERT INTO management.movement (yard_visit_id, movement_type, from_warehouse_id, to_warehouse_id)
+         VALUES ($1, 'Rehandle', NULL, NULL)`,
+        [yardVisitId],
+      );
+      const result = await client.query(
+        `UPDATE management.yard_visit SET status = 'STAGING', updated_at = CURRENT_TIMESTAMP
+         WHERE yard_visit_id = $1 RETURNING ${YARD_VISIT_COLUMNS}`,
+        [yardVisitId],
+      );
+      return result.rows[0];
+    });
   }
 
-  async gateOut(yardVisitId: string, atd?: string) {
+  async gateOut(yardVisitId: string, atd?: string, vehicleId?: string) {
     const visit = await this.findOne(yardVisitId);
     if (visit.status !== 'STAGING') {
       throw new ConflictException(`Chỉ Yard Visit đang STAGING mới Gate-out được (hiện tại: ${visit.status})`);
     }
-    const gateOutInspection = await this.prisma.inspection.findFirst({
-      where: { yardVisitId, inspectionType: 'GateOut' },
-    });
-    if (!gateOutInspection) {
+    const gateOutInspection = await this.db.query(
+      `SELECT 1 FROM management.inspection WHERE yard_visit_id = $1 AND inspection_type = 'Gate-out' LIMIT 1`,
+      [yardVisitId],
+    );
+    if (gateOutInspection.rows.length === 0) {
       throw new ConflictException('Cần tạo Inspection type=Gate-out cho Yard Visit này trước khi Gate-out (FR-09.2)');
     }
 
-    const [, updated] = await this.prisma.$transaction([
-      this.prisma.movement.create({ data: { yardVisitId, movementType: 'GateOut', fromSlotId: null, toSlotId: null } }),
-      this.prisma.yardVisit.update({ where: { yardVisitId }, data: { status: 'DEPARTED', atd: atd ? new Date(atd) : new Date() } }),
-    ]);
-    return updated;
+    return this.db.transaction(async (client) => {
+      // [SỬA] from_warehouse_id lấy đúng kho hiện tại (đã gán lúc Gate-in, FR-06) —
+      // Gate-out giải phóng kho: current_warehouse_id trả về null.
+      await client.query(
+        `INSERT INTO management.movement (yard_visit_id, movement_type, from_warehouse_id, to_warehouse_id, vehicle_id)
+         VALUES ($1, 'Gate-out', $2, NULL, $3)`,
+        [yardVisitId, visit.current_warehouse_id, vehicleId ?? null],
+      );
+      const result = await client.query(
+        `UPDATE management.yard_visit
+         SET status = 'DEPARTED', atd = $1, current_warehouse_id = NULL, updated_at = CURRENT_TIMESTAMP
+         WHERE yard_visit_id = $2
+         RETURNING ${YARD_VISIT_COLUMNS}`,
+        [atd ? new Date(atd) : new Date(), yardVisitId],
+      );
+      return result.rows[0];
+    });
   }
 
   async close(yardVisitId: string) {
@@ -126,17 +164,23 @@ export class YardVisitService {
     if (visit.status !== 'DEPARTED') {
       throw new ConflictException(`Chỉ Yard Visit đang DEPARTED mới Close được (hiện tại: ${visit.status})`);
     }
-    const updated = await this.prisma.yardVisit.update({ where: { yardVisitId }, data: { status: 'CLOSED' } });
+    const result = await this.db.query(
+      `UPDATE management.yard_visit SET status = 'CLOSED', updated_at = CURRENT_TIMESTAMP
+       WHERE yard_visit_id = $1 RETURNING ${YARD_VISIT_COLUMNS}`,
+      [yardVisitId],
+    );
     await this.markShipmentCompletedIfAllClosed(yardVisitId);
-    return updated;
+    return result.rows[0];
   }
 
   // ---- Derived Shipment.status transitions — State Business mục 4.2 ----
 
   private async markShipmentArrivedIfFirst(yardVisitId: string) {
     const shipment = await this.shipmentOf(yardVisitId);
-    if (shipment && shipment.status === 'InTransit') {
-      await this.prisma.shipment.update({ where: { shipmentId: shipment.shipmentId }, data: { status: 'Arrived' } });
+    if (shipment && shipment.status === 'In Transit') {
+      await this.db.query(`UPDATE management.shipment SET status = 'Arrived', updated_at = CURRENT_TIMESTAMP WHERE shipment_id = $1`, [
+        shipment.shipment_id,
+      ]);
     }
   }
 
@@ -144,21 +188,35 @@ export class YardVisitService {
     const shipment = await this.shipmentOf(yardVisitId);
     if (!shipment || shipment.status !== 'Arrived') return;
 
-    const containers = await this.prisma.shipmentContainer.findMany({
-      where: { shipmentId: shipment.shipmentId },
-      include: { yardVisits: true },
-    });
-    const allClosed = containers.every((sc) => sc.yardVisits.some((v) => v.status === 'CLOSED'));
-    if (allClosed) {
-      await this.prisma.shipment.update({ where: { shipmentId: shipment.shipmentId }, data: { status: 'Completed' } });
+    const result = await this.db.query<{ total: string; closed_count: string }>(
+      `SELECT COUNT(*) AS total,
+              COUNT(*) FILTER (
+                WHERE EXISTS (
+                  SELECT 1 FROM management.yard_visit yv
+                  WHERE yv.shipment_container_id = sc.shipment_container_id AND yv.status = 'CLOSED'
+                )
+              ) AS closed_count
+       FROM management.shipment_container sc
+       WHERE sc.shipment_id = $1`,
+      [shipment.shipment_id],
+    );
+    const { total, closed_count } = result.rows[0];
+    if (Number(total) === Number(closed_count)) {
+      await this.db.query(`UPDATE management.shipment SET status = 'Completed', updated_at = CURRENT_TIMESTAMP WHERE shipment_id = $1`, [
+        shipment.shipment_id,
+      ]);
     }
   }
 
   private async shipmentOf(yardVisitId: string) {
-    const visit = await this.prisma.yardVisit.findUnique({
-      where: { yardVisitId },
-      include: { shipmentContainer: { include: { shipment: true } } },
-    });
-    return visit?.shipmentContainer.shipment ?? null;
+    const result = await this.db.query<{ shipment_id: string; status: string }>(
+      `SELECT s.shipment_id, s.status
+       FROM management.yard_visit yv
+       JOIN management.shipment_container sc ON sc.shipment_container_id = yv.shipment_container_id
+       JOIN management.shipment s ON s.shipment_id = sc.shipment_id
+       WHERE yv.yard_visit_id = $1`,
+      [yardVisitId],
+    );
+    return result.rows[0] ?? null;
   }
 }

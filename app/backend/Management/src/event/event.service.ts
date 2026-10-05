@@ -1,6 +1,18 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { DatabaseService } from '../database/database.service';
 import { CreateEventDto } from './dto/create-event.dto';
+
+const EVENT_COLUMNS = 'event_id, yard_visit_id, event_type, description, requested_by, occurred_at, resolution_status';
+
+// DTO dùng tên enum liền không dấu (khớp quy ước Prisma cũ); DB lưu đúng
+// theo SRS (có khoảng trắng) — cần map tay vì không còn Prisma @map nữa.
+const EVENT_TYPE_DB: Record<string, string> = {
+  CustomsHold: 'Customs Hold',
+  Rejected: 'Rejected',
+  Dispute: 'Dispute',
+  DamageDuringMovement: 'Damage During Movement',
+  OwnerRequest: 'Owner Request',
+};
 
 // ============================================================
 // EventService — FR-07. Event.resolutionStatus (Open/Resolved) là điều kiện
@@ -9,37 +21,59 @@ import { CreateEventDto } from './dto/create-event.dto';
 // ============================================================
 @Injectable()
 export class EventService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly db: DatabaseService) {}
 
-  findAll(filter: { yardVisitId?: string; eventType?: string; resolutionStatus?: string }) {
-    return this.prisma.yardEvent.findMany({
-      where: {
-        ...(filter.yardVisitId && { yardVisitId: filter.yardVisitId }),
-        ...(filter.eventType && { eventType: filter.eventType as never }),
-        ...(filter.resolutionStatus && { resolutionStatus: filter.resolutionStatus as never }),
-      },
-      orderBy: { occurredAt: 'desc' },
-    });
+  async findAll(filter: { yardVisitId?: string; eventType?: string; resolutionStatus?: string }) {
+    const conditions: string[] = [];
+    const params: unknown[] = [];
+    if (filter.yardVisitId) {
+      params.push(filter.yardVisitId);
+      conditions.push(`yard_visit_id = $${params.length}`);
+    }
+    if (filter.eventType) {
+      params.push(EVENT_TYPE_DB[filter.eventType] ?? filter.eventType);
+      conditions.push(`event_type = $${params.length}`);
+    }
+    if (filter.resolutionStatus) {
+      params.push(filter.resolutionStatus);
+      conditions.push(`resolution_status = $${params.length}`);
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await this.db.query(
+      `SELECT ${EVENT_COLUMNS} FROM management.event ${where} ORDER BY occurred_at DESC`,
+      params,
+    );
+    return result.rows;
   }
 
   async create(dto: CreateEventDto) {
-    const visit = await this.prisma.yardVisit.findUnique({ where: { yardVisitId: dto.yardVisitId } });
-    if (!visit) throw new NotFoundException(`Yard Visit ${dto.yardVisitId} không tồn tại`);
-    return this.prisma.yardEvent.create({ data: { ...dto } });
+    const visit = await this.db.query(`SELECT 1 FROM management.yard_visit WHERE yard_visit_id = $1`, [dto.yardVisitId]);
+    if (visit.rows.length === 0) throw new NotFoundException(`Yard Visit ${dto.yardVisitId} không tồn tại`);
+    const result = await this.db.query(
+      `INSERT INTO management.event (yard_visit_id, event_type, description, requested_by)
+       VALUES ($1, $2, $3, $4)
+       RETURNING ${EVENT_COLUMNS}`,
+      [dto.yardVisitId, EVENT_TYPE_DB[dto.eventType] ?? dto.eventType, dto.description ?? null, dto.requestedBy ?? null],
+    );
+    return result.rows[0];
   }
 
   async resolve(eventId: string, resolutionNote?: string) {
-    const event = await this.prisma.yardEvent.findUnique({ where: { eventId } });
-    if (!event) throw new NotFoundException(`Event ${eventId} không tồn tại`);
-    if (event.resolutionStatus === 'Resolved') {
+    const current = await this.db.query<{ resolution_status: string; description: string | null }>(
+      `SELECT resolution_status, description FROM management.event WHERE event_id = $1`,
+      [eventId],
+    );
+    if (current.rows.length === 0) throw new NotFoundException(`Event ${eventId} không tồn tại`);
+    if (current.rows[0].resolution_status === 'Resolved') {
       throw new ConflictException('Event đã Resolved từ trước');
     }
-    return this.prisma.yardEvent.update({
-      where: { eventId },
-      data: {
-        resolutionStatus: 'Resolved',
-        ...(resolutionNote && { description: `${event.description ?? ''}\n[Resolved] ${resolutionNote}`.trim() }),
-      },
-    });
+    const description = resolutionNote
+      ? `${current.rows[0].description ?? ''}\n[Resolved] ${resolutionNote}`.trim()
+      : current.rows[0].description;
+    const result = await this.db.query(
+      `UPDATE management.event SET resolution_status = 'Resolved', description = $1 WHERE event_id = $2 RETURNING ${EVENT_COLUMNS}`,
+      [description, eventId],
+    );
+    return result.rows[0];
   }
 }

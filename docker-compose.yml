@@ -1,7 +1,5 @@
 # docker-compose.yml — orchestrate toàn bộ hạ tầng cho môi trường DEV/local.
-# Mỗi "service" dưới đây = 1 container. "networks" = mạng ảo riêng để các
-# container gọi nhau bằng TÊN SERVICE (vd management-service gọi "postgres:5432",
-# không phải localhost) — đây là điểm khác biệt cốt lõi so với chạy app trên máy thật.
+# Mỗi "service" dưới đây = 1 container. "networks" = mạng ảo riêng 
 
 networks:
   cyms-net:
